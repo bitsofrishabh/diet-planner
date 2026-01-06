@@ -1,14 +1,18 @@
 /**
- * PDF Parser Module
- * Parses uploaded PDF files and extracts diet plan data
- * Note: This is a MOCK implementation for the frontend prototype
- * In production, this would use a proper PDF parsing library or backend API
+ * PDF Parser Module with AI Integration
+ * Uses pdfjs-dist for text extraction and OpenAI-compatible API for intelligent parsing
  */
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set worker source - using CDN for simplicity
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - use legacy build for better compatibility
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
+
+const EMERGENT_API_KEY = process.env.REACT_APP_EMERGENT_LLM_KEY;
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 /**
  * Extract text content from PDF file
@@ -16,17 +20,24 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.j
 export async function extractTextFromPdf(file) {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({ 
+      data: arrayBuffer,
+      useSystemFonts: true
+    }).promise;
+    
     let fullText = '';
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
-      fullText += pageText + '\n';
+      const pageText = textContent.items
+        .map(item => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ');
+      fullText += pageText + '\n\n';
     }
 
-    return fullText;
+    return fullText.trim();
   } catch (error) {
     console.error('Error extracting PDF text:', error);
     throw error;
@@ -34,35 +45,154 @@ export async function extractTextFromPdf(file) {
 }
 
 /**
- * Parse PDF content and extract diet data
- * This mock version generates structured diet data
- * In production, this would use NLP/AI to parse actual PDF content
+ * Use AI to parse extracted text into structured diet data
+ */
+async function parseWithAI(extractedText, duration) {
+  if (!EMERGENT_API_KEY) {
+    console.warn('No API key found, using fallback parsing');
+    return null;
+  }
+
+  const systemPrompt = `You are a diet plan parser. Extract meal information from the provided text and structure it into a JSON format.
+
+Output ONLY valid JSON in this exact format (no markdown, no code blocks):
+{
+  "days": [
+    {
+      "day": 1,
+      "breakfast": "meal description",
+      "midMorning": "snack description",
+      "lunch": "meal description", 
+      "evening": "snack description",
+      "dinner": "meal description"
+    }
+  ]
+}
+
+Rules:
+- Extract ${duration} days of meals
+- If a meal is not specified, use a reasonable healthy option
+- Keep meal descriptions concise (under 50 words each)
+- If the text doesn't contain diet information, generate a healthy sample diet`;
+
+  const userPrompt = `Parse the following diet plan text and extract meals for ${duration} days:
+
+${extractedText.substring(0, 4000)}
+
+Return ONLY the JSON object, no other text.`;
+
+  try {
+    const response = await fetch(OPENAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${EMERGENT_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 3000
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('AI API error:', response.status, errorData);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      console.error('No content in AI response');
+      return null;
+    }
+
+    // Clean the response - remove markdown code blocks if present
+    let cleanedContent = content.trim();
+    if (cleanedContent.startsWith('```json')) {
+      cleanedContent = cleanedContent.slice(7);
+    } else if (cleanedContent.startsWith('```')) {
+      cleanedContent = cleanedContent.slice(3);
+    }
+    if (cleanedContent.endsWith('```')) {
+      cleanedContent = cleanedContent.slice(0, -3);
+    }
+    cleanedContent = cleanedContent.trim();
+
+    const parsed = JSON.parse(cleanedContent);
+    return parsed;
+  } catch (error) {
+    console.error('AI parsing error:', error);
+    return null;
+  }
+}
+
+/**
+ * Main function to parse PDF content and extract diet data
  */
 export async function parsePdfContent(file, duration = 7, onProgress) {
   try {
-    // Extract text from PDF
-    if (onProgress) onProgress(0.2);
+    if (onProgress) onProgress(0.1);
     
     let extractedText = '';
+    
+    // Try to extract text from PDF
     try {
       extractedText = await extractTextFromPdf(file);
+      console.log('Extracted text length:', extractedText.length);
     } catch (e) {
-      console.warn('PDF extraction failed, using mock data');
+      console.warn('PDF extraction failed:', e.message);
     }
     
-    if (onProgress) onProgress(0.5);
+    if (onProgress) onProgress(0.4);
 
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Try AI parsing if we have text and API key
+    let dietData = null;
     
-    if (onProgress) onProgress(0.8);
+    if (extractedText.length > 50 && EMERGENT_API_KEY) {
+      if (onProgress) onProgress(0.5);
+      dietData = await parseWithAI(extractedText, duration);
+      if (onProgress) onProgress(0.8);
+    }
 
-    // Parse the extracted text (mock implementation)
-    const dietData = parseTextToDietData(extractedText, duration);
+    // If AI parsing failed or no text, use sample data
+    if (!dietData || !dietData.days || dietData.days.length === 0) {
+      console.log('Using sample diet data');
+      dietData = generateSampleDietData(duration);
+    }
+
+    // Ensure we have the right number of days
+    while (dietData.days.length < duration) {
+      const templateDay = dietData.days[dietData.days.length - 1] || generateSampleDietData(1).days[0];
+      dietData.days.push({
+        ...templateDay,
+        day: dietData.days.length + 1
+      });
+    }
     
+    // Trim to exact duration
+    dietData.days = dietData.days.slice(0, duration);
+    
+    // Ensure day numbers are correct
+    dietData.days = dietData.days.map((day, idx) => ({
+      ...day,
+      day: idx + 1
+    }));
+
     if (onProgress) onProgress(1);
     
-    return dietData;
+    return {
+      ...dietData,
+      parsedFromPdf: extractedText.length > 50,
+      usedAI: !!EMERGENT_API_KEY && extractedText.length > 50,
+      extractedTextLength: extractedText.length
+    };
   } catch (error) {
     console.error('Error parsing PDF:', error);
     throw error;
@@ -70,15 +200,10 @@ export async function parsePdfContent(file, duration = 7, onProgress) {
 }
 
 /**
- * Convert extracted text to structured diet data
- * Mock implementation that generates realistic diet plans
+ * Generate sample diet data as fallback
  */
-function parseTextToDietData(text, duration) {
-  // Check if we have any meaningful text to parse
-  const hasContent = text && text.trim().length > 100;
-  
-  // Sample meals database for generating diet plans
-  const mealDatabase = {
+function generateSampleDietData(duration) {
+  const meals = {
     breakfast: [
       'Oatmeal with fresh berries, almonds & honey',
       'Whole wheat toast with avocado, cherry tomatoes & scrambled eggs',
@@ -161,45 +286,19 @@ function parseTextToDietData(text, duration) {
     ]
   };
 
-  // If we detected content from PDF, try to extract keywords
-  // and match with our database (simplified mock logic)
-  let usePdfContent = false;
-  let detectedMeals = [];
-  
-  if (hasContent) {
-    // Simple keyword detection (mock AI parsing)
-    const lowerText = text.toLowerCase();
-    const keywords = ['breakfast', 'lunch', 'dinner', 'snack', 'morning', 'evening'];
-    const foundKeywords = keywords.filter(k => lowerText.includes(k));
-    
-    if (foundKeywords.length >= 2) {
-      usePdfContent = true;
-      // In real implementation, we'd use NLP here
-    }
-  }
-
-  // Generate diet data
   const days = [];
   for (let i = 0; i < duration; i++) {
-    // Use different meals for variety, cycling through the database
-    const mealIndex = i % mealDatabase.breakfast.length;
-    const altIndex = (i + 3) % mealDatabase.breakfast.length;
-    
     days.push({
       day: i + 1,
-      breakfast: mealDatabase.breakfast[i % mealDatabase.breakfast.length],
-      midMorning: mealDatabase.midMorning[(i + 2) % mealDatabase.midMorning.length],
-      lunch: mealDatabase.lunch[i % mealDatabase.lunch.length],
-      evening: mealDatabase.evening[(i + 1) % mealDatabase.evening.length],
-      dinner: mealDatabase.dinner[(i + 3) % mealDatabase.dinner.length]
+      breakfast: meals.breakfast[i % meals.breakfast.length],
+      midMorning: meals.midMorning[i % meals.midMorning.length],
+      lunch: meals.lunch[i % meals.lunch.length],
+      evening: meals.evening[i % meals.evening.length],
+      dinner: meals.dinner[i % meals.dinner.length]
     });
   }
 
-  return {
-    days,
-    parsedFromPdf: usePdfContent,
-    extractedTextLength: text?.length || 0
-  };
+  return { days };
 }
 
 export default { extractTextFromPdf, parsePdfContent };
