@@ -119,7 +119,7 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
                 Diet Plan Loaded!
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Switch to the "Edit Diet" tab to review and modify
+                Switch to the Edit Diet tab to review and modify
               </p>
             </>
           ) : (
