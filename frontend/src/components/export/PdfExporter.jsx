@@ -7,9 +7,9 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Download, Eye, Printer, FileText, Leaf, Drumstick, Calendar, User, AlertCircle, Heart } from 'lucide-react';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { Download, Eye, FileText, Leaf, Drumstick, Calendar, AlertCircle, Heart } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
   const [isExporting, setIsExporting] = useState(false);
