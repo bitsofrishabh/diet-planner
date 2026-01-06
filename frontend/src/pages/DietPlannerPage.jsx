@@ -93,7 +93,7 @@ const DietPlannerPage = () => {
                   Client Information
                 </CardTitle>
                 <CardDescription>
-                  Enter your client's details for the diet plan
+                  Enter your client details for the diet plan
                 </CardDescription>
               </CardHeader>
               <CardContent>
