@@ -198,7 +198,7 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
       {/* Sample Data Option */}
       {status === 'idle' && (
         <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-2">Don't have a PDF?</p>
+          <p className="text-xs text-muted-foreground mb-2">No PDF file available?</p>
           <Button
             variant="link"
             size="sm"
