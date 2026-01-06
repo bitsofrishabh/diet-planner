@@ -198,7 +198,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
       });
 
       // Generate table with autoTable
-      pdf.autoTable({
+      autoTable(pdf, {
         startY: yPos,
         head: [['Day', ...mealLabels]],
         body: tableBody,
