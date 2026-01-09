@@ -137,6 +137,9 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ PASSED - All form fields working: Client Name input, Age input (number), Health Condition textarea, Allergic Items input. Diet Type radio buttons show correct green/red styling. Duration dropdown shows all options (7,10,14,21,30 days). Start Date picker opens calendar popover, End Date auto-calculates correctly"
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED - Compact horizontal card layout working perfectly. Client Name, Age, Diet Type (Veg/Non-Veg toggle), Days dropdown (tested 14 days), Start date picker all functional. 'More' button expands to show Health Condition and Allergic Items fields. End date auto-calculates correctly based on duration and start date."
 
   - task: "Tab Navigation"
     implemented: true
