@@ -62,10 +62,12 @@ module.exports = {
                 },
                 veg: {
                     DEFAULT: 'hsl(var(--veg))',
+                    foreground: 'hsl(var(--veg-foreground))',
                     light: 'hsl(var(--veg-light))'
                 },
                 nonveg: {
                     DEFAULT: 'hsl(var(--nonveg))',
+                    foreground: 'hsl(var(--nonveg-foreground))',
                     light: 'hsl(var(--nonveg-light))'
                 },
                 border: 'hsl(var(--border))',
