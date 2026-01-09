@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,13 +7,12 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Download, Eye, FileText, Leaf, Drumstick, Calendar, AlertCircle, Heart } from 'lucide-react';
+import { Download, Eye, FileText, Leaf, Drumstick, Calendar, AlertCircle, Heart, Sunrise, Moon } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
+export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks, instructions, mealColumns }) => {
   const [isExporting, setIsExporting] = useState(false);
-  const previewRef = useRef(null);
 
   const generatePdf = async () => {
     if (!dietData) {
@@ -27,161 +26,189 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
+      const margin = 12;
       const contentWidth = pageWidth - (margin * 2);
       let yPos = margin;
 
       // Colors
-      const primaryColor = [75, 135, 110]; // Sage green
-      const accentColor = [55, 145, 135]; // Teal
+      const primaryColor = [34, 87, 60]; // Dark green
+      const accentColor = [120, 180, 100]; // Light green
       const textColor = [40, 50, 45];
-      const mutedColor = [120, 130, 125];
-      const bgColor = [248, 252, 250];
+      const mutedColor = [100, 110, 105];
+      const bgColor = [248, 252, 248];
 
-      // Helper to add new page if needed
-      const checkPageBreak = (requiredHeight) => {
-        if (yPos + requiredHeight > pageHeight - margin) {
-          pdf.addPage();
-          yPos = margin;
-          addHeader();
-          return true;
-        }
-        return false;
-      };
-
-      // Add header to each page
-      const addHeader = () => {
+      // Add header with logo
+      const addHeader = async () => {
         // Header background
         pdf.setFillColor(...bgColor);
-        pdf.rect(0, 0, pageWidth, 35, 'F');
+        pdf.rect(0, 0, pageWidth, 32, 'F');
         
-        // Brand name
-        pdf.setFontSize(22);
-        pdf.setTextColor(...primaryColor);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(brandName, margin, 18);
+        // Try to add logo
+        let logoWidth = 0;
+        if (brandLogo) {
+          try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+              img.src = brandLogo;
+            });
+            
+            const logoHeight = 18;
+            logoWidth = (img.width / img.height) * logoHeight;
+            const maxLogoWidth = 60;
+            if (logoWidth > maxLogoWidth) {
+              logoWidth = maxLogoWidth;
+            }
+            
+            pdf.addImage(img, 'PNG', margin, 7, logoWidth, logoHeight);
+          } catch (e) {
+            console.warn('Could not load logo:', e);
+            // Fallback: text brand name
+            pdf.setFontSize(16);
+            pdf.setTextColor(...primaryColor);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(brandName, margin, 18);
+            logoWidth = pdf.getTextWidth(brandName);
+          }
+        } else {
+          pdf.setFontSize(16);
+          pdf.setTextColor(...primaryColor);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(brandName, margin, 18);
+        }
         
-        // Tagline
-        pdf.setFontSize(9);
-        pdf.setTextColor(...mutedColor);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text('Personalized Nutrition Plan', margin, 26);
-
         // Decorative line
         pdf.setDrawColor(...primaryColor);
-        pdf.setLineWidth(0.8);
-        pdf.line(margin, 32, margin + 40, 32);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, 28, margin + 35, 28);
         
-        yPos = 42;
+        yPos = 38;
       };
 
       // Add footer
       const addFooter = (pageNum, totalPages) => {
-        pdf.setFontSize(8);
+        pdf.setFontSize(7);
         pdf.setTextColor(...mutedColor);
-        pdf.text(`© ${brandName} - Professional Diet Planning`, margin, pageHeight - 8);
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin - 20, pageHeight - 8);
+        pdf.text(`© ${brandName} - Professional Diet Planning`, margin, pageHeight - 6);
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin - 18, pageHeight - 6);
       };
 
-      // === PAGE 1: Cover & Client Info ===
-      addHeader();
+      // === PAGE 1: Header & Client Info ===
+      await addHeader();
 
-      // Client Information Card
+      // Client Info Card
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(margin, yPos, contentWidth, 55, 3, 3, 'F');
-      pdf.setDrawColor(230, 235, 232);
-      pdf.roundedRect(margin, yPos, contentWidth, 55, 3, 3, 'S');
+      pdf.roundedRect(margin, yPos, contentWidth, 32, 2, 2, 'F');
+      pdf.setDrawColor(220, 230, 225);
+      pdf.roundedRect(margin, yPos, contentWidth, 32, 2, 2, 'S');
 
-      // Client title
-      pdf.setFontSize(12);
-      pdf.setTextColor(...primaryColor);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Client Information', margin + 8, yPos + 12);
-
-      // Client details grid
+      // Client details - 2 rows
       const details = [
-        ['Name', clientInfo.name || 'Not specified'],
-        ['Age', clientInfo.age ? `${clientInfo.age} years` : 'Not specified'],
-        ['Diet Type', clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Vegetarian'],
-        ['Duration', `${clientInfo.duration || 7} Days`]
+        { label: 'Client', value: clientInfo.name || 'Not specified' },
+        { label: 'Age', value: clientInfo.age ? `${clientInfo.age} yrs` : '-' },
+        { label: 'Diet', value: clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg' },
+        { label: 'Duration', value: `${dietData.days.length} Days` }
       ];
 
-      pdf.setFontSize(9);
-      let detailX = margin + 8;
-      let detailY = yPos + 22;
-
+      pdf.setFontSize(8);
+      let dx = margin + 6;
+      let dy = yPos + 10;
+      
       details.forEach((detail, i) => {
         if (i === 2) {
-          detailX = margin + contentWidth / 2;
-          detailY = yPos + 22;
+          dx = margin + contentWidth / 2 + 6;
+          dy = yPos + 10;
         }
         pdf.setTextColor(...mutedColor);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(detail[0], detailX, detailY);
+        pdf.text(detail.label + ':', dx, dy);
         pdf.setTextColor(...textColor);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(detail[1], detailX, detailY + 5);
-        detailY += 15;
+        pdf.text(detail.value, dx + 22, dy);
+        dy += 10;
       });
 
-      yPos += 62;
+      yPos += 38;
 
-      // Health & Allergies section
+      // Health & Allergies (if any)
       if (clientInfo.healthIssue || clientInfo.allergicItems) {
-        pdf.setFillColor(255, 248, 245);
-        pdf.roundedRect(margin, yPos, contentWidth, 28, 3, 3, 'F');
-
-        pdf.setFontSize(9);
-        let infoY = yPos + 10;
-
+        pdf.setFillColor(255, 250, 245);
+        pdf.roundedRect(margin, yPos, contentWidth, 16, 2, 2, 'F');
+        
+        pdf.setFontSize(7);
+        let infoX = margin + 6;
+        
         if (clientInfo.healthIssue) {
           pdf.setTextColor(...mutedColor);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text('Health Condition:', margin + 8, infoY);
+          pdf.text('Health:', infoX, yPos + 7);
           pdf.setTextColor(...textColor);
-          pdf.text(clientInfo.healthIssue, margin + 40, infoY);
-          infoY += 8;
+          pdf.text(clientInfo.healthIssue, infoX + 15, yPos + 7);
+          infoX = margin + contentWidth / 2;
         }
-
+        
         if (clientInfo.allergicItems) {
-          pdf.setTextColor(180, 80, 70);
+          pdf.setTextColor(180, 70, 60);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('Allergies:', margin + 8, infoY);
-          pdf.setTextColor(180, 80, 70);
+          pdf.text('Allergies:', infoX, yPos + 7);
           pdf.setFont('helvetica', 'normal');
-          pdf.text(clientInfo.allergicItems, margin + 30, infoY);
+          pdf.text(clientInfo.allergicItems, infoX + 20, yPos + 7);
         }
-
-        yPos += 35;
+        
+        yPos += 22;
       }
 
       // Date range
       if (clientInfo.startDate && clientInfo.endDate) {
-        pdf.setFillColor(...bgColor);
-        pdf.roundedRect(margin, yPos, contentWidth, 18, 3, 3, 'F');
-        
-        pdf.setFontSize(10);
+        pdf.setFontSize(8);
         pdf.setTextColor(...primaryColor);
         pdf.setFont('helvetica', 'bold');
-        const dateText = `${format(clientInfo.startDate, 'MMMM d, yyyy')} — ${format(clientInfo.endDate, 'MMMM d, yyyy')}`;
+        const dateText = `${format(clientInfo.startDate, 'MMM d, yyyy')} — ${format(clientInfo.endDate, 'MMM d, yyyy')}`;
         const dateWidth = pdf.getTextWidth(dateText);
-        pdf.text(dateText, (pageWidth - dateWidth) / 2, yPos + 11);
-        
-        yPos += 25;
+        pdf.text(dateText, (pageWidth - dateWidth) / 2, yPos + 4);
+        yPos += 12;
       }
 
-      // === DIET TABLE ===
-      yPos += 5;
-      
-      // Table header
-      pdf.setFontSize(14);
+      // Drinks Section
+      if (drinks && (drinks.morning || drinks.night)) {
+        pdf.setFillColor(255, 252, 245);
+        pdf.roundedRect(margin, yPos, contentWidth, 18, 2, 2, 'F');
+        
+        pdf.setFontSize(7);
+        let drinkX = margin + 6;
+        
+        if (drinks.morning) {
+          pdf.setTextColor(200, 140, 60);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('☀ Morning:', drinkX, yPos + 8);
+          pdf.setTextColor(...textColor);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(drinks.morning, drinkX + 22, yPos + 8);
+        }
+        
+        if (drinks.night) {
+          drinkX = margin + contentWidth / 2;
+          pdf.setTextColor(100, 100, 160);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('☾ Night:', drinkX, yPos + 8);
+          pdf.setTextColor(...textColor);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(drinks.night, drinkX + 18, yPos + 8);
+        }
+        
+        yPos += 24;
+      }
+
+      // Diet Table Title
+      pdf.setFontSize(11);
       pdf.setTextColor(...textColor);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Daily Meal Plan', margin, yPos);
+      pdf.text('Daily Meal Plan', margin, yPos + 4);
       yPos += 10;
 
       // Prepare table data
-      const mealLabels = ['Breakfast', 'Mid Morning', 'Lunch', 'Evening', 'Dinner'];
+      const columnLabels = mealColumns.map(c => c.label);
       const tableBody = dietData.days.map((day, idx) => {
         const dayLabel = clientInfo.startDate 
           ? `Day ${day.day}\n${format(new Date(clientInfo.startDate.getTime() + idx * 24 * 60 * 60 * 1000), 'MMM d')}`
@@ -189,25 +216,25 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
         
         return [
           dayLabel,
-          day.breakfast || '-',
-          day.midMorning || '-',
-          day.lunch || '-',
-          day.evening || '-',
-          day.dinner || '-'
+          ...mealColumns.map(col => day[col.id] || '-')
         ];
       });
 
-      // Generate table with autoTable
+      // Calculate column widths based on number of columns
+      const dayColWidth = 16;
+      const mealColWidth = (contentWidth - dayColWidth) / mealColumns.length;
+
+      // Generate table
       autoTable(pdf, {
         startY: yPos,
-        head: [['Day', ...mealLabels]],
+        head: [['Day', ...columnLabels]],
         body: tableBody,
         theme: 'grid',
         styles: {
-          fontSize: 8,
-          cellPadding: 4,
-          lineColor: [230, 235, 232],
-          lineWidth: 0.3,
+          fontSize: 7,
+          cellPadding: 2.5,
+          lineColor: [220, 230, 225],
+          lineWidth: 0.2,
           textColor: textColor,
           overflow: 'linebreak',
           cellWidth: 'wrap'
@@ -216,29 +243,79 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
           fillColor: primaryColor,
           textColor: [255, 255, 255],
           fontStyle: 'bold',
-          fontSize: 8,
+          fontSize: 7,
           halign: 'center'
         },
         columnStyles: {
-          0: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-          1: { cellWidth: 32 },
-          2: { cellWidth: 32 },
-          3: { cellWidth: 32 },
-          4: { cellWidth: 32 },
-          5: { cellWidth: 32 }
+          0: { cellWidth: dayColWidth, halign: 'center', fontStyle: 'bold' },
+          ...Object.fromEntries(
+            mealColumns.map((_, i) => [i + 1, { cellWidth: mealColWidth }])
+          )
         },
         alternateRowStyles: {
-          fillColor: [252, 254, 253]
+          fillColor: [252, 255, 252]
         },
         margin: { left: margin, right: margin },
         didDrawPage: (data) => {
-          // Add header on new pages
           if (data.pageNumber > 1) {
-            yPos = margin;
-            addHeader();
+            // Add mini header on subsequent pages
+            pdf.setFontSize(10);
+            pdf.setTextColor(...primaryColor);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(brandName, margin, 10);
+            pdf.setFontSize(7);
+            pdf.setTextColor(...mutedColor);
+            pdf.text(`Diet Plan - ${clientInfo.name || 'Client'}`, margin, 15);
           }
         }
       });
+
+      // Get final Y position after table
+      yPos = pdf.lastAutoTable.finalY + 8;
+
+      // Instructions Section
+      if (instructions && instructions.trim()) {
+        // Check if we need a new page
+        const instructionsHeight = 40;
+        if (yPos + instructionsHeight > pageHeight - 20) {
+          pdf.addPage();
+          yPos = margin + 10;
+          
+          // Mini header
+          pdf.setFontSize(10);
+          pdf.setTextColor(...primaryColor);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(brandName, margin, 10);
+        }
+
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(margin, yPos, contentWidth, 5, 2, 2, 'F');
+        
+        pdf.setFontSize(9);
+        pdf.setTextColor(...primaryColor);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Instructions & Guidelines', margin + 4, yPos + 3.5);
+        
+        yPos += 8;
+        
+        pdf.setFontSize(7);
+        pdf.setTextColor(...textColor);
+        pdf.setFont('helvetica', 'normal');
+        
+        const instructionLines = instructions.split('\n');
+        instructionLines.forEach(line => {
+          if (yPos > pageHeight - 15) {
+            pdf.addPage();
+            yPos = margin + 10;
+          }
+          
+          const wrappedLines = pdf.splitTextToSize(line, contentWidth - 8);
+          wrappedLines.forEach(wLine => {
+            pdf.text(wLine, margin + 4, yPos);
+            yPos += 4;
+          });
+        });
+      }
 
       // Add footers to all pages
       const totalPages = pdf.internal.getNumberOfPages();
@@ -248,7 +325,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
       }
 
       // Save PDF
-      const fileName = `${brandName.replace(/\s+/g, '_')}_Diet_Plan_${clientInfo.name ? clientInfo.name.replace(/\s+/g, '_') : 'Client'}.pdf`;
+      const fileName = `${brandName.replace(/\\s+/g, '_')}_Diet_${clientInfo.name ? clientInfo.name.replace(/\\s+/g, '_') : 'Plan'}.pdf`;
       pdf.save(fileName);
       
       toast.success('PDF exported successfully!', {
@@ -265,8 +342,8 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
   if (!dietData) {
     return (
       <Card className="shadow-card">
-        <CardContent className="py-12 text-center">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+        <CardContent className="py-10 text-center">
+          <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-50" />
           <p className="text-muted-foreground">No diet data available for export</p>
         </CardContent>
       </Card>
@@ -274,179 +351,160 @@ export const PdfExporter = ({ dietData, clientInfo, brandName }) => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Export Actions */}
+    <div className="space-y-4">
+      {/* Export Button */}
       <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
             <Download className="w-5 h-5 text-primary" />
             Export Diet Plan
           </CardTitle>
           <CardDescription>
-            Review the preview below and export your branded diet plan as PDF
+            Download your branded diet plan as a professional PDF
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="premium"
-              size="lg"
-              onClick={generatePdf}
-              disabled={isExporting}
-              className="flex-1 sm:flex-none"
-            >
-              {isExporting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download PDF
-                </>
-              )}
-            </Button>
-          </div>
+          <Button
+            variant="premium"
+            size="lg"
+            onClick={generatePdf}
+            disabled={isExporting}
+            className="w-full sm:w-auto"
+          >
+            {isExporting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
       {/* Preview */}
       <Card className="shadow-card overflow-hidden">
-        <CardHeader className="bg-muted/30">
-          <CardTitle className="flex items-center gap-2 text-base">
+        <CardHeader className="pb-2 bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Eye className="w-4 h-4 text-primary" />
             PDF Preview
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[600px]">
-            <div ref={previewRef} className="p-8 bg-card">
+          <ScrollArea className="h-[450px]">
+            <div className="p-6 bg-card">
               {/* Preview Header */}
-              <div className="bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl p-6 mb-6">
-                <h1 className="text-2xl font-display font-bold text-foreground mb-1">
-                  {brandName}
-                </h1>
-                <p className="text-sm text-muted-foreground">Personalized Nutrition Plan</p>
-                <Separator className="my-4 bg-primary/20" />
+              <div className="bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  {brandLogo && (
+                    <img src={brandLogo} alt={brandName} className="h-10 w-auto object-contain" />
+                  )}
+                  {!brandLogo && (
+                    <h1 className="text-xl font-display font-bold text-foreground">{brandName}</h1>
+                  )}
+                </div>
                 
-                {/* Client Info Preview */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Client Info */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Client Name</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {clientInfo.name || 'Not specified'}
-                    </p>
+                    <span className="text-muted-foreground">Client:</span>
+                    <span className="ml-1 font-medium">{clientInfo.name || '-'}</span>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Age</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {clientInfo.age ? `${clientInfo.age} years` : 'Not specified'}
-                    </p>
+                    <span className="text-muted-foreground">Age:</span>
+                    <span className="ml-1 font-medium">{clientInfo.age || '-'}</span>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Diet Type</p>
                     <Badge className={cn(
-                      "mt-0.5",
+                      "text-xs",
                       clientInfo.dietType === 'veg' 
                         ? "bg-veg-light text-veg border-0" 
                         : "bg-nonveg-light text-nonveg border-0"
                     )}>
-                      {clientInfo.dietType === 'veg' ? (
-                        <><Leaf className="w-3 h-3 mr-1" /> Vegetarian</>
-                      ) : (
-                        <><Drumstick className="w-3 h-3 mr-1" /> Non-Veg</>
-                      )}
+                      {clientInfo.dietType === 'veg' ? <Leaf className="w-3 h-3 mr-1" /> : <Drumstick className="w-3 h-3 mr-1" />}
+                      {clientInfo.dietType === 'veg' ? 'Veg' : 'Non-Veg'}
                     </Badge>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Duration</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {clientInfo.duration || 7} Days
-                    </p>
+                    <span className="text-muted-foreground">Days:</span>
+                    <span className="ml-1 font-medium">{dietData.days.length}</span>
                   </div>
                 </div>
 
-                {/* Health Info */}
-                {(clientInfo.healthIssue || clientInfo.allergicItems) && (
-                  <div className="mt-4 p-3 rounded-lg bg-card/80 space-y-2">
-                    {clientInfo.healthIssue && (
-                      <div className="flex items-start gap-2">
-                        <Heart className="w-4 h-4 text-primary mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Health Condition</p>
-                          <p className="text-sm text-foreground">{clientInfo.healthIssue}</p>
-                        </div>
+                {/* Drinks Preview */}
+                {(drinks?.morning || drinks?.night) && (
+                  <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-4 text-xs">
+                    {drinks.morning && (
+                      <div className="flex items-center gap-1.5">
+                        <Sunrise className="w-3 h-3 text-amber-500" />
+                        <span className="text-muted-foreground">Morning:</span>
+                        <span className="font-medium">{drinks.morning}</span>
                       </div>
                     )}
-                    {clientInfo.allergicItems && (
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-destructive mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Allergies</p>
-                          <p className="text-sm text-destructive font-medium">{clientInfo.allergicItems}</p>
-                        </div>
+                    {drinks.night && (
+                      <div className="flex items-center gap-1.5">
+                        <Moon className="w-3 h-3 text-indigo-500" />
+                        <span className="text-muted-foreground">Night:</span>
+                        <span className="font-medium">{drinks.night}</span>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* Date Range */}
-                {clientInfo.startDate && clientInfo.endDate && (
-                  <div className="mt-4 flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-primary" />
-                    <span className="text-muted-foreground">Duration:</span>
-                    <span className="font-medium text-foreground">
-                      {format(clientInfo.startDate, 'MMM d, yyyy')} — {format(clientInfo.endDate, 'MMM d, yyyy')}
-                    </span>
                   </div>
                 )}
               </div>
 
               {/* Diet Table Preview */}
-              <div className="space-y-4">
-                <h3 className="font-display font-semibold text-lg text-foreground">
-                  Daily Meal Plan
-                </h3>
-                <div className="rounded-lg border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-primary text-primary-foreground">
-                        <th className="px-3 py-2 text-left font-medium">Day</th>
-                        <th className="px-3 py-2 text-left font-medium">Breakfast</th>
-                        <th className="px-3 py-2 text-left font-medium">Mid Morning</th>
-                        <th className="px-3 py-2 text-left font-medium">Lunch</th>
-                        <th className="px-3 py-2 text-left font-medium">Evening</th>
-                        <th className="px-3 py-2 text-left font-medium">Dinner</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dietData.days.slice(0, 5).map((day, idx) => (
-                        <tr key={idx} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                          <td className="px-3 py-2 font-medium text-foreground">
-                            Day {day.day}
-                          </td>
-                          <td className="px-3 py-2 text-foreground text-xs">{day.breakfast || '-'}</td>
-                          <td className="px-3 py-2 text-foreground text-xs">{day.midMorning || '-'}</td>
-                          <td className="px-3 py-2 text-foreground text-xs">{day.lunch || '-'}</td>
-                          <td className="px-3 py-2 text-foreground text-xs">{day.evening || '-'}</td>
-                          <td className="px-3 py-2 text-foreground text-xs">{day.dinner || '-'}</td>
-                        </tr>
+              <div className="rounded-lg border border-border overflow-hidden mb-4">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-primary text-primary-foreground">
+                      <th className="px-2 py-1.5 text-left font-medium">Day</th>
+                      {mealColumns.slice(0, 4).map(col => (
+                        <th key={col.id} className="px-2 py-1.5 text-left font-medium">{col.label}</th>
                       ))}
-                    </tbody>
-                  </table>
-                  {dietData.days.length > 5 && (
-                    <div className="px-3 py-2 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border">
-                      + {dietData.days.length - 5} more days in PDF export
-                    </div>
-                  )}
-                </div>
+                      {mealColumns.length > 4 && (
+                        <th className="px-2 py-1.5 text-left font-medium">...</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dietData.days.slice(0, 3).map((day, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                        <td className="px-2 py-1.5 font-medium">Day {day.day}</td>
+                        {mealColumns.slice(0, 4).map(col => (
+                          <td key={col.id} className="px-2 py-1.5 text-foreground truncate max-w-[100px]">
+                            {day[col.id] || '-'}
+                          </td>
+                        ))}
+                        {mealColumns.length > 4 && <td className="px-2 py-1.5">...</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {dietData.days.length > 3 && (
+                  <div className="px-2 py-1.5 text-center text-xs text-muted-foreground bg-muted/20 border-t">
+                    + {dietData.days.length - 3} more days
+                  </div>
+                )}
               </div>
 
-              {/* Footer Preview */}
-              <div className="mt-8 pt-4 border-t border-border flex justify-between items-center text-xs text-muted-foreground">
-                <span>© {brandName} - Professional Diet Planning</span>
-                <span>Page 1 of 1</span>
+              {/* Instructions Preview */}
+              {instructions && (
+                <div className="rounded-lg bg-muted/30 p-3">
+                  <h4 className="text-xs font-medium text-foreground mb-2">Instructions</h4>
+                  <p className="text-xs text-muted-foreground whitespace-pre-line line-clamp-3">
+                    {instructions}
+                  </p>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="mt-4 pt-3 border-t border-border flex justify-between items-center text-xs text-muted-foreground">
+                <span>© {brandName}</span>
+                <span>Page 1</span>
               </div>
             </div>
           </ScrollArea>
