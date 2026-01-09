@@ -130,8 +130,10 @@
         --ring: 155 50% 55%;
         
         --veg: 145 60% 50%;
+        --veg-foreground: 0 0% 100%;
         --veg-light: 145 40% 18%;
         --nonveg: 15 75% 55%;
+        --nonveg-foreground: 0 0% 100%;
         --nonveg-light: 15 50% 18%;
         
         --gradient-hero: linear-gradient(135deg, hsl(155 45% 38% / 0.15) 0%, hsl(165 50% 45% / 0.08) 50%, hsl(150 20% 8%) 100%);
