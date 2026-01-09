@@ -1,40 +1,24 @@
 import { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { format, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Coffee, Sun, Utensils, Cookie, Moon, Edit2 } from 'lucide-react';
+import { Coffee, Sun, Utensils, Cookie, Moon, Dumbbell, Apple, Salad, Edit2 } from 'lucide-react';
 
-const mealIcons = {
-  breakfast: Coffee,
-  midMorning: Sun,
-  lunch: Utensils,
-  evening: Cookie,
-  dinner: Moon
+const iconMap = {
+  Coffee, Sun, Utensils, Cookie, Moon, Dumbbell, Apple, Salad
 };
 
-const mealLabels = {
-  breakfast: 'Breakfast',
-  midMorning: 'Mid Morning',
-  lunch: 'Lunch',
-  evening: 'Evening Snack',
-  dinner: 'Dinner'
-};
-
-export const DietTable = ({ dietData, onUpdate, clientInfo }) => {
+export const DietTable = ({ dietData, onUpdate, clientInfo, mealColumns }) => {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
 
   if (!dietData || !dietData.days) return null;
 
-  const mealTypes = ['breakfast', 'midMorning', 'lunch', 'evening', 'dinner'];
-
   const handleCellClick = (dayIndex, mealType, currentValue) => {
     setEditingCell({ dayIndex, mealType });
-    setEditValue(currentValue);
+    setEditValue(currentValue || '');
   };
 
   const handleCellBlur = () => {
@@ -61,40 +45,30 @@ export const DietTable = ({ dietData, onUpdate, clientInfo }) => {
     return null;
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {mealTypes.map((type) => {
-          const Icon = mealIcons[type];
-          return (
-            <Badge key={type} variant="outline" className="flex items-center gap-1.5 py-1">
-              <Icon className="w-3 h-3" />
-              {mealLabels[type]}
-            </Badge>
-          );
-        })}
-      </div>
+  const getIcon = (iconName) => {
+    return iconMap[iconName] || Utensils;
+  };
 
-      {/* Table */}
-      <ScrollArea className="w-full rounded-xl border border-border">
-        <div className="min-w-[800px]">
+  return (
+    <div className="space-y-3">
+      <ScrollArea className="w-full rounded-lg border border-border">
+        <div className="min-w-[600px]">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="w-[100px] font-semibold">
+                <TableHead className="w-[80px] font-semibold text-center">
                   Day
                 </TableHead>
-                {mealTypes.map((type) => {
-                  const Icon = mealIcons[type];
+                {mealColumns.map((col) => {
+                  const Icon = getIcon(col.icon);
                   return (
-                    <TableHead key={type} className="min-w-[180px]">
+                    <TableHead key={col.id} className="min-w-[140px]">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Icon className="w-3.5 h-3.5 text-primary" />
+                        <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+                          <Icon className="w-3 h-3 text-primary" />
                         </div>
-                        <span className="font-semibold text-foreground">
-                          {mealLabels[type]}
+                        <span className="font-semibold text-foreground text-xs">
+                          {col.label}
                         </span>
                       </div>
                     </TableHead>
@@ -111,7 +85,7 @@ export const DietTable = ({ dietData, onUpdate, clientInfo }) => {
                     dayIndex % 2 === 0 ? "bg-card" : "bg-muted/20"
                   )}
                 >
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium text-center">
                     <div className="flex flex-col">
                       <span className="text-sm font-semibold text-foreground">
                         Day {day.day}
@@ -123,33 +97,33 @@ export const DietTable = ({ dietData, onUpdate, clientInfo }) => {
                       )}
                     </div>
                   </TableCell>
-                  {mealTypes.map((mealType) => {
-                    const isEditing = editingCell?.dayIndex === dayIndex && editingCell?.mealType === mealType;
-                    const value = day[mealType] || '';
+                  {mealColumns.map((col) => {
+                    const isEditing = editingCell?.dayIndex === dayIndex && editingCell?.mealType === col.id;
+                    const value = day[col.id] || '';
 
                     return (
-                      <TableCell key={mealType} className="p-2">
+                      <TableCell key={col.id} className="p-1.5">
                         {isEditing ? (
                           <Textarea
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             onBlur={handleCellBlur}
                             onKeyDown={handleKeyDown}
-                            className="min-h-[80px] text-sm resize-none"
+                            className="min-h-[60px] text-xs resize-none"
                             autoFocus
                           />
                         ) : (
                           <div
-                            onClick={() => handleCellClick(dayIndex, mealType, value)}
+                            onClick={() => handleCellClick(dayIndex, col.id, value)}
                             className={cn(
-                              "meal-cell min-h-[70px] cursor-pointer relative group/cell",
-                              "transition-all hover:shadow-sm"
+                              "meal-cell min-h-[50px] p-2 cursor-pointer relative group/cell rounded-md",
+                              "transition-all hover:shadow-sm text-xs"
                             )}
                           >
-                            <p className="text-sm text-foreground leading-relaxed pr-6">
-                              {value || <span className="text-muted-foreground italic">Click to add meal</span>}
+                            <p className="text-foreground leading-relaxed pr-5">
+                              {value || <span className="text-muted-foreground italic">Click to add</span>}
                             </p>
-                            <Edit2 className="absolute top-2 right-2 w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover/cell:opacity-100 transition-opacity" />
+                            <Edit2 className="absolute top-1.5 right-1.5 w-3 h-3 text-muted-foreground opacity-0 group-hover/cell:opacity-100 transition-opacity" />
                           </div>
                         )}
                       </TableCell>
@@ -164,16 +138,16 @@ export const DietTable = ({ dietData, onUpdate, clientInfo }) => {
       </ScrollArea>
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-full bg-primary" />
           <span>{dietData.days.length} Days</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-full bg-accent" />
-          <span>{dietData.days.length * 5} Meals</span>
+          <span>{mealColumns.length} Meals/Day</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Edit2 className="w-3 h-3" />
           <span>Click any cell to edit</span>
         </div>

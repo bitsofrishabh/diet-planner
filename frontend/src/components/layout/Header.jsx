@@ -1,37 +1,63 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Leaf, Settings, Sparkles } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
+import { Settings, Upload, Image, Sparkles } from 'lucide-react';
 
-export const Header = ({ brandName, onBrandChange }) => {
+export const Header = ({ brandName, brandLogo, onBrandChange, onLogoUpload }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [tempBrand, setTempBrand] = useState(brandName);
+  const [tempLogo, setTempLogo] = useState(brandLogo);
+  const fileInputRef = useRef(null);
 
   const handleSave = () => {
     onBrandChange(tempBrand);
+    if (tempLogo !== brandLogo) {
+      onLogoUpload(tempLogo);
+    }
     setIsOpen(false);
+    toast.success('Brand settings saved!');
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result;
+      setTempLogo(dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
     <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border/50">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+        <div className="flex items-center justify-between h-14">
+          {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="relative">
+            {brandLogo ? (
+              <img 
+                src={brandLogo} 
+                alt={brandName} 
+                className="h-10 w-auto object-contain"
+              />
+            ) : (
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                <Leaf className="w-5 h-5 text-primary-foreground" />
+                <span className="text-primary-foreground font-bold text-sm">
+                  {brandName.charAt(0)}
+                </span>
               </div>
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-success rounded-full border-2 border-card" />
-            </div>
-            <div>
-              <h1 className="text-lg font-display font-bold text-foreground">
-                {brandName}
-              </h1>
-              <p className="text-xs text-muted-foreground">Diet Planner</p>
-            </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -43,7 +69,7 @@ export const Header = ({ brandName, onBrandChange }) => {
             
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="rounded-full">
+                <Button variant="outline" size="icon" className="rounded-full h-9 w-9">
                   <Settings className="w-4 h-4" />
                 </Button>
               </DialogTrigger>
@@ -51,7 +77,45 @@ export const Header = ({ brandName, onBrandChange }) => {
                 <DialogHeader>
                   <DialogTitle className="font-display">Brand Settings</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-5 py-4">
+                  {/* Logo Upload */}
+                  <div className="space-y-3">
+                    <Label>Brand Logo</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center overflow-hidden">
+                        {tempLogo ? (
+                          <img src={tempLogo} alt="Logo" className="w-full h-full object-contain p-1" />
+                        ) : (
+                          <Image className="w-8 h-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full"
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Logo
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          PNG, JPG up to 2MB. Saved locally.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Brand Name */}
                   <div className="space-y-2">
                     <Label htmlFor="brandName">Brand Name</Label>
                     <Input
@@ -61,7 +125,7 @@ export const Header = ({ brandName, onBrandChange }) => {
                       placeholder="Enter your brand name"
                     />
                     <p className="text-xs text-muted-foreground">
-                      This will appear on exported PDF headers
+                      Appears on exported PDF headers
                     </p>
                   </div>
                 </div>
