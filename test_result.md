@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the NutriCare Diet Planner application - a dietician app for creating and exporting diet plans"
+user_problem_statement: "Test 'The Balance Diet' Diet Planner app - a dietician app with Header branding, Client Information form, Tab Navigation, Upload Tab with PDF dropzone, Edit Tab with Morning/Night Drinks and Columns management, and Export Tab with PDF Preview"
 
 frontend:
   - task: "Header & Branding"
