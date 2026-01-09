@@ -242,6 +242,9 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ PASSED - Export Diet Plan card visible, Download PDF button enabled and functional, PDF Preview section shows brand name, client information, and meal table preview correctly"
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED - PDF Preview section shows logo, client info (John Doe), drinks (Morning: lemon water, Night: turmeric milk), and diet table preview. Download PDF button generates PDF successfully with success toast 'PDF exported successfully! The_Balance_Diet_Diet_John_Doe.pdf'."
 
   - task: "Responsive Design"
     implemented: true
