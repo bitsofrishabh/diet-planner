@@ -212,6 +212,21 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ PASSED - Meal table displays with all columns (Day, Breakfast, Mid Morning, Lunch, Evening, Dinner), cell editing functionality works (textarea appears on click), meal edits are saved successfully. Minor: Legend badges not visible but table functionality is complete"
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED - Diet Table displays meals correctly with clickable cells for editing. Cell editing opens textarea, tested with 'Oatmeal with fruits and nuts'. Table shows 14 days of data with proper column headers and icons. Edit functionality working perfectly."
+
+  - task: "Edit Tab - Instructions Section"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/diet/InstructionsSection.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Instructions & Notes textarea working perfectly. Successfully added 'Follow the diet plan strictly. Drink plenty of water throughout the day.' Text is properly saved and displayed."
 
   - task: "Export Tab"
     implemented: true
