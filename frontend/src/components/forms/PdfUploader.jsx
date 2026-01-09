@@ -7,17 +7,16 @@ import { Upload, FileText, X, Sparkles, CheckCircle, AlertCircle } from 'lucide-
 import { cn } from '@/lib/utils';
 import { parsePdfContent } from '@/lib/pdfParser';
 
-export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInfo }) => {
+export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInfo, mealColumns }) => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState('idle'); // idle, uploading, parsing, complete, error
+  const [status, setStatus] = useState('idle');
 
   const processFile = useCallback(async (file) => {
     setUploadedFile(file);
     setStatus('uploading');
     setProgress(0);
 
-    // Animate progress
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
       currentProgress += 5;
@@ -26,7 +25,6 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
       }
     }, 100);
 
-    // Short delay then start parsing
     await new Promise(resolve => setTimeout(resolve, 600));
     clearInterval(progressInterval);
     setProgress(35);
@@ -34,20 +32,25 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
     setIsProcessing(true);
 
     try {
-      const parsedData = await parsePdfContent(file, clientInfo.duration || 7, (p) => {
-        setProgress(35 + Math.round(p * 55));
-      });
+      const parsedData = await parsePdfContent(
+        file, 
+        clientInfo.duration || 7, 
+        (p) => setProgress(35 + Math.round(p * 55)),
+        mealColumns
+      );
 
       setProgress(100);
       setStatus('complete');
       setIsProcessing(false);
       
       const message = parsedData.usedAI 
-        ? 'Diet plan parsed with AI!' 
-        : 'Diet plan loaded successfully!';
+        ? `AI extracted ${parsedData.days.length} days from your PDF!`
+        : parsedData.parsedFromPdf
+          ? `Parsed ${parsedData.days.length} days from PDF`
+          : 'Loaded sample diet plan';
       
       toast.success(message, {
-        description: `${parsedData.days.length} days of meals ready to edit.`
+        description: 'Review and edit the diet plan as needed.'
       });
       
       onParsed(parsedData);
@@ -57,10 +60,10 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
       setIsProcessing(false);
       
       toast.error('Failed to parse PDF', {
-        description: 'Click "Load Sample Diet Plan" to use sample data instead.'
+        description: 'Click "Load Sample" to use sample data instead.'
       });
     }
-  }, [onParsed, setIsProcessing, clientInfo.duration]);
+  }, [onParsed, setIsProcessing, clientInfo.duration, mealColumns]);
 
   const onDrop = useCallback(async (acceptedFiles) => {
     const file = acceptedFiles[0];
@@ -76,9 +79,7 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
+    accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
     disabled: isProcessing
   });
@@ -94,22 +95,37 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
     setProgress(50);
     setIsProcessing(true);
     
-    setTimeout(() => {
-      const sampleData = generateSampleDietData(clientInfo.duration || 7);
-      setProgress(100);
-      setStatus('complete');
-      setIsProcessing(false);
-      onParsed(sampleData);
-      toast.success('Sample diet plan loaded!', {
-        description: `${sampleData.days.length} days of meals ready to edit.`
-      });
-    }, 1200);
-  }, [clientInfo.duration, onParsed, setIsProcessing]);
+    setTimeout(async () => {
+      try {
+        const { parsePdfContent } = await import('@/lib/pdfParser');
+        // Create a mock file to trigger sample data generation
+        const mockFile = new File([''], 'sample.pdf', { type: 'application/pdf' });
+        const sampleData = await parsePdfContent(
+          mockFile, 
+          clientInfo.duration || 7,
+          () => {},
+          mealColumns
+        );
+        
+        setProgress(100);
+        setStatus('complete');
+        setIsProcessing(false);
+        onParsed(sampleData);
+        toast.success('Sample diet plan loaded!', {
+          description: `${sampleData.days.length} days ready to edit.`
+        });
+      } catch (e) {
+        setStatus('error');
+        setIsProcessing(false);
+        toast.error('Failed to load sample data');
+      }
+    }, 1000);
+  }, [clientInfo.duration, onParsed, setIsProcessing, mealColumns]);
 
   const getStatusText = () => {
     switch (status) {
       case 'uploading': return 'Uploading file...';
-      case 'parsing': return 'AI is parsing your diet plan...';
+      case 'parsing': return 'AI is analyzing your diet plan...';
       case 'complete': return 'Processing complete!';
       case 'error': return 'Processing failed';
       default: return '';
@@ -117,7 +133,7 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Dropzone */}
       <div
         {...getRootProps()}
@@ -131,32 +147,31 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
       >
         <input {...getInputProps()} />
         
-        {/* Background decoration */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col items-center">
+        <div className="relative z-10 flex flex-col items-center py-6">
           {status === 'complete' ? (
             <>
-              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
-                <CheckCircle className="w-8 h-8 text-success" />
+              <div className="w-14 h-14 rounded-full bg-success/10 flex items-center justify-center mb-3">
+                <CheckCircle className="w-7 h-7 text-success" />
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">
+              <h3 className="text-base font-medium text-foreground mb-1">
                 Diet Plan Loaded!
               </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Switch to the Edit Diet tab to review and modify
+              <p className="text-sm text-muted-foreground">
+                Switch to Edit tab to review and modify
               </p>
             </>
           ) : status === 'error' ? (
             <>
-              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8 text-destructive" />
+              <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mb-3">
+                <AlertCircle className="w-7 h-7 text-destructive" />
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">
+              <h3 className="text-base font-medium text-foreground mb-1">
                 Could not parse PDF
               </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Try uploading a different file or use sample data
+              <p className="text-sm text-muted-foreground mb-3">
+                Try a different file or use sample data
               </p>
               <Button variant="outline" size="sm" onClick={(e) => {
                 e.stopPropagation();
@@ -168,20 +183,20 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
           ) : (
             <>
               <div className={cn(
-                "w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors",
+                "w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-colors",
                 isDragActive ? "bg-primary/20" : "bg-muted"
               )}>
                 <Upload className={cn(
-                  "w-8 h-8 transition-colors",
+                  "w-7 h-7 transition-colors",
                   isDragActive ? "text-primary" : "text-muted-foreground"
                 )} />
               </div>
               
-              <h3 className="text-lg font-medium text-foreground mb-2">
+              <h3 className="text-base font-medium text-foreground mb-1">
                 {isDragActive ? 'Drop your PDF here' : 'Upload Diet Plan PDF'}
               </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Drag and drop or click to browse
+              <p className="text-sm text-muted-foreground mb-3">
+                AI will extract and structure your diet plan automatically
               </p>
               <Button variant="outline" size="sm" disabled={isProcessing}>
                 Choose File
@@ -193,14 +208,14 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
 
       {/* File Info & Progress */}
       {uploadedFile && status !== 'idle' && status !== 'error' && (
-        <div className="p-4 rounded-xl bg-card border border-border animate-scale-in">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-primary" />
+        <div className="p-3 rounded-lg bg-card border border-border animate-scale-in">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <FileText className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground truncate max-w-[200px]">
+                <p className="text-sm font-medium text-foreground truncate max-w-[180px]">
                   {uploadedFile.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -209,22 +224,16 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
               </div>
             </div>
             {status === 'complete' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={clearFile}
-              >
-                <X className="w-4 h-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearFile}>
+                <X className="w-3 h-3" />
               </Button>
             )}
           </div>
 
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2" />
+          <div className="space-y-1.5">
+            <Progress value={progress} className="h-1.5" />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 {status === 'parsing' && (
                   <Sparkles className="w-3 h-3 text-primary animate-pulse" />
                 )}
@@ -240,8 +249,8 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
 
       {/* Sample Data Option */}
       {(status === 'idle' || status === 'error') && (
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-2">No PDF file available?</p>
+        <div className="text-center pt-2">
+          <p className="text-xs text-muted-foreground mb-1.5">No PDF available?</p>
           <Button
             variant="link"
             size="sm"
@@ -255,68 +264,3 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
     </div>
   );
 };
-
-// Generate sample diet data
-function generateSampleDietData(duration) {
-  const meals = {
-    breakfast: [
-      'Oatmeal with fresh berries, almonds & honey',
-      'Whole wheat toast with avocado, cherry tomatoes & scrambled eggs',
-      'Greek yogurt parfait with granola, mixed nuts & seasonal fruits',
-      'Vegetable poha with roasted peanuts & lemon',
-      'Multigrain dosa with coconut chutney & sambar',
-      'Smoothie bowl with banana, spinach, chia seeds & almond butter',
-      'Idli (3 pcs) with sambar & coconut chutney'
-    ],
-    midMorning: [
-      'Mixed nuts (30g) with green tea',
-      'Apple slices with almond butter',
-      'Fresh coconut water with a banana',
-      'Carrot & cucumber sticks with hummus',
-      'Buttermilk with roasted cumin',
-      'Fresh fruit bowl (papaya, apple, pomegranate)',
-      'Sprouted moong salad with lemon dressing'
-    ],
-    lunch: [
-      'Brown rice, moong dal, mixed vegetable sabzi & fresh salad',
-      'Quinoa pulao with raita & grilled paneer tikka',
-      'Whole wheat roti (2), palak paneer, cucumber raita',
-      'Vegetable biryani with boondi raita & green salad',
-      'Multigrain roti, chole masala, onion salad',
-      'Buddha bowl with chickpeas, roasted vegetables & tahini',
-      'Rajma chawal with mint chutney & buttermilk'
-    ],
-    evening: [
-      'Roasted makhana with herbal tea',
-      'Vegetable cutlet (2) with green chutney',
-      'Sprouts chaat with pomegranate & mint',
-      'Trail mix (30g) with coconut water',
-      'Steamed dhokla (4 pcs) with mint chutney',
-      'Fresh vegetable juice (carrot, beetroot, apple)',
-      'Roasted chickpeas with masala - 1/2 cup'
-    ],
-    dinner: [
-      'Clear vegetable soup with whole wheat bread roll',
-      'Grilled paneer with sautéed vegetables & mint dip',
-      'Moong dal with steamed rice, bhindi sabzi & salad',
-      'Vegetable khichdi with kadhi & papad',
-      'Palak paneer with multigrain roti & cucumber salad',
-      'Stuffed bell peppers with quinoa & cheese',
-      'Moong dal cheela with mint chutney & curd'
-    ]
-  };
-
-  const days = [];
-  for (let i = 0; i < duration; i++) {
-    days.push({
-      day: i + 1,
-      breakfast: meals.breakfast[i % 7],
-      midMorning: meals.midMorning[i % 7],
-      lunch: meals.lunch[i % 7],
-      evening: meals.evening[i % 7],
-      dinner: meals.dinner[i % 7]
-    });
-  }
-
-  return { days };
-}
