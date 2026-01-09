@@ -63,8 +63,10 @@
         
         /* Veg / Non-Veg specific colors */
         --veg: 145 65% 40%;
+        --veg-foreground: 0 0% 100%;
         --veg-light: 145 60% 92%;
         --nonveg: 15 70% 50%;
+        --nonveg-foreground: 0 0% 100%;
         --nonveg-light: 15 80% 94%;
         
         --radius: 0.75rem;
