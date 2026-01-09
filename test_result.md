@@ -119,6 +119,9 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ PASSED - NutriCare logo and brand name visible, settings button opens Brand Settings dialog successfully, brand name change functionality works (tested changing from NutriCare to TestBrand)"
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED - 'The Balance Diet' brand name visible in header, settings button (gear icon) opens Brand Settings dialog with logo preview, Upload Logo button, and Brand Name input field. Brand name change functionality tested and working perfectly."
 
   - task: "Client Information Form"
     implemented: true
