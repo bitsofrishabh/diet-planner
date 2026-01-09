@@ -170,6 +170,33 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ PASSED - Upload dropzone visible, Load Sample Diet Plan button works perfectly, success toast notification appears, automatically switches to Edit Diet tab after loading data"
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED - PDF dropzone with 'Choose File' button working. Load Sample Diet Plan button loads 14-day sample data successfully with success toast 'Sample diet plan loaded! 14 days ready to edit.' Automatically switches to Edit tab after loading."
+
+  - task: "Edit Tab - Morning & Night Drinks"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/diet/DrinksSection.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Morning Drink and Night Drink fields are visible and editable in Edit tab. Successfully tested with 'Warm lemon water with honey' and 'Warm turmeric milk'. Fields have proper placeholders and styling."
+
+  - task: "Edit Tab - Columns Management"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/diet/MealColumnsManager.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Columns button opens Manage Meal Columns panel with 5 toggle switches (Breakfast, Mid Morning, Lunch, Evening Snack, Dinner). 'Add Custom Column' button present. Quick Add options for Pre-Workout, Post-Workout, Snack, Brunch all found and functional."
 
   - task: "Diet Table (Edit Diet tab)"
     implemented: true
