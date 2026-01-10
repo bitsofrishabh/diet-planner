@@ -75,6 +75,9 @@ async def get_status_checks():
 async def parse_diet_text(request: ParseDietRequest):
     """Parse diet plan text using AI"""
     
+    logger.info(f"Received parse request, text length: {len(request.text)}")
+    logger.info(f"API Key present: {bool(EMERGENT_LLM_KEY)}, Key prefix: {EMERGENT_LLM_KEY[:15] if EMERGENT_LLM_KEY else 'None'}")
+    
     if not EMERGENT_LLM_KEY:
         return ParseDietResponse(success=False, error="API key not configured")
     
