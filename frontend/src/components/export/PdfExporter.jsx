@@ -34,7 +34,6 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       const textColor = [40, 50, 45];
       const mutedColor = [100, 110, 105];
       const bgLight = [248, 252, 248];
-      const warningColor = [180, 70, 60];
 
       // Add header with logo
       const addHeader = async () => {
@@ -88,121 +87,62 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       await addHeader();
 
       // Consolidated Client Info Box - All details in one box
-      const boxHeight = 28;
+      const infoFontSize = 7;
+      const lineHeight = 4;
+      const padding = 4;
+      const maxTextWidth = contentWidth - padding * 2;
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(infoFontSize);
+
+      const lines = [];
+      const line1Parts = [
+        `Client: ${clientInfo.name || '-'}`,
+        `Age: ${clientInfo.age ? `${clientInfo.age} yrs` : '-'}`,
+        `Diet: ${clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg'}`,
+        `Days: ${dietData.days.length}`
+      ];
+      lines.push(...pdf.splitTextToSize(line1Parts.join(' | '), maxTextWidth));
+
+      const line2Parts = [];
+      if (clientInfo.startDate && clientInfo.endDate) {
+        line2Parts.push(
+          `Dates: ${format(clientInfo.startDate, 'MMM d, yyyy')} - ${format(clientInfo.endDate, 'MMM d, yyyy')}`
+        );
+      }
+      if (clientInfo.healthIssue) {
+        line2Parts.push(`Health: ${clientInfo.healthIssue}`);
+      }
+      if (clientInfo.allergicItems) {
+        line2Parts.push(`Allergies: ${clientInfo.allergicItems}`);
+      }
+      if (line2Parts.length > 0) {
+        lines.push(...pdf.splitTextToSize(line2Parts.join(' | '), maxTextWidth));
+      }
+
+      const line3Parts = [];
+      if (drinks?.morning) {
+        line3Parts.push(`AM: ${drinks.morning}`);
+      }
+      if (drinks?.night) {
+        line3Parts.push(`PM: ${drinks.night}`);
+      }
+      if (line3Parts.length > 0) {
+        lines.push(...pdf.splitTextToSize(line3Parts.join(' | '), maxTextWidth));
+      }
+
+      const boxHeight = lines.length * lineHeight + padding * 2;
       pdf.setFillColor(255, 255, 255);
       pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 2, 2, 'F');
       pdf.setDrawColor(220, 230, 225);
       pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 2, 2, 'S');
 
-      pdf.setFontSize(7);
-      const col1X = margin + 4;
-      const col2X = margin + contentWidth * 0.25;
-      const col3X = margin + contentWidth * 0.5;
-      const col4X = margin + contentWidth * 0.75;
-      
-      // Row 1: Name, Age, Diet Type, Duration
-      let rowY = yPos + 7;
-      
-      // Name
-      pdf.setTextColor(...mutedColor);
-      pdf.text('Client:', col1X, rowY);
       pdf.setTextColor(...textColor);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(clientInfo.name || '-', col1X + 12, rowY);
-      
-      // Age
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...mutedColor);
-      pdf.text('Age:', col2X, rowY);
-      pdf.setTextColor(...textColor);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(clientInfo.age ? `${clientInfo.age} yrs` : '-', col2X + 8, rowY);
-      
-      // Diet Type
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...mutedColor);
-      pdf.text('Diet:', col3X, rowY);
-      pdf.setTextColor(clientInfo.dietType === 'veg' ? [34, 120, 60] : [180, 70, 60]);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg', col3X + 9, rowY);
-      
-      // Duration & Dates
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...mutedColor);
-      pdf.text('Duration:', col4X, rowY);
-      pdf.setTextColor(...textColor);
-      pdf.setFont('helvetica', 'bold');
-      let dateStr = `${dietData.days.length} Days`;
-      if (clientInfo.startDate && clientInfo.endDate) {
-        dateStr = `${format(clientInfo.startDate, 'MMM d')} - ${format(clientInfo.endDate, 'MMM d')}`;
-      }
-      pdf.text(dateStr, col4X + 16, rowY);
-
-      // Row 2: Health, Allergies, Morning Drink, Night Drink
-      rowY += 8;
-      
-      // Health
-      if (clientInfo.healthIssue) {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(...mutedColor);
-        pdf.text('Health:', col1X, rowY);
-        pdf.setTextColor(...textColor);
-        const healthText = clientInfo.healthIssue.length > 20 
-          ? clientInfo.healthIssue.substring(0, 20) + '...' 
-          : clientInfo.healthIssue;
-        pdf.text(healthText, col1X + 12, rowY);
-      }
-      
-      // Allergies
-      if (clientInfo.allergicItems) {
-        pdf.setTextColor(...warningColor);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Allergies:', col2X, rowY);
-        pdf.setFont('helvetica', 'normal');
-        const allergyText = clientInfo.allergicItems.length > 15 
-          ? clientInfo.allergicItems.substring(0, 15) + '...' 
-          : clientInfo.allergicItems;
-        pdf.text(allergyText, col2X + 17, rowY);
-      }
-      
-      // Morning Drink
-      if (drinks?.morning) {
-        pdf.setTextColor(200, 140, 50);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('AM:', col3X, rowY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(...textColor);
-        const mornText = drinks.morning.length > 18 
-          ? drinks.morning.substring(0, 18) + '...' 
-          : drinks.morning;
-        pdf.text(mornText, col3X + 8, rowY);
-      }
-      
-      // Night Drink
-      if (drinks?.night) {
-        pdf.setTextColor(80, 80, 140);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('PM:', col4X, rowY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(...textColor);
-        const nightText = drinks.night.length > 18 
-          ? drinks.night.substring(0, 18) + '...' 
-          : drinks.night;
-        pdf.text(nightText, col4X + 8, rowY);
-      }
-
-      // Row 3: Full drinks if long
-      if ((drinks?.morning && drinks.morning.length > 18) || (drinks?.night && drinks.night.length > 18)) {
-        rowY += 7;
-        if (drinks?.morning && drinks.morning.length > 18) {
-          pdf.setTextColor(200, 140, 50);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Morning Drink:', col1X, rowY);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(...textColor);
-          pdf.text(drinks.morning, col1X + 26, rowY);
-        }
-      }
+      let textY = yPos + padding + lineHeight - 1;
+      lines.forEach(line => {
+        pdf.text(line, margin + padding, textY);
+        textY += lineHeight;
+      });
 
       yPos += boxHeight + 5;
 

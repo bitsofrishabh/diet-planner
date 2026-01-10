@@ -116,20 +116,20 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
             </div>
 
             {/* Start Date */}
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-[140px] shrink-0">
               <Label className="text-xs text-muted-foreground">Start</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "h-8 w-28 justify-start text-left font-normal text-xs px-2",
+                      "h-8 w-[140px] justify-start text-left font-normal text-xs px-2",
                       !clientInfo.startDate && "text-muted-foreground"
                     )}
                   >
                     <CalendarIcon className="mr-1 h-3 w-3" />
                     {clientInfo.startDate ? (
-                      format(clientInfo.startDate, "MMM d")
+                      format(clientInfo.startDate, "MMM d, yyyy")
                     ) : (
                       "Pick"
                     )}
@@ -146,10 +146,20 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
               </Popover>
             </div>
 
+            {/* End Date */}
+            {clientInfo.endDate && (
+              <div className="space-y-1 min-w-[140px] shrink-0">
+                <Label className="text-xs text-muted-foreground">End</Label>
+                <div className="h-8 w-[140px] px-2 flex items-center text-xs bg-muted/50 rounded-lg border">
+                  {format(clientInfo.endDate, "MMM d, yyyy")}
+                </div>
+              </div>
+            )}
+
             {/* Expand Toggle */}
             <div className="flex items-end justify-end">
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-2">
+                <Button variant="ghost" size="sm" className="h-8 px-2 shrink-0">
                   <ChevronDown className={cn(
                     "w-4 h-4 transition-transform",
                     isExpanded && "rotate-180"
@@ -160,15 +170,6 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
             </div>
           </div>
 
-          {/* End Date Display - Below main row */}
-          {clientInfo.startDate && clientInfo.endDate && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {format(clientInfo.startDate, "MMM d")} → {format(clientInfo.endDate, "MMM d, yyyy")}
-              </span>
-              <span className="ml-2">({clientInfo.duration} days)</span>
-            </div>
-          )}
 
           {/* Expanded Section */}
           <CollapsibleContent className="pt-3">
