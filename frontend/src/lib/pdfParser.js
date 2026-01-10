@@ -1,6 +1,6 @@
 /**
  * PDF Parser Module with AI Integration
- * Parses uploaded PDF files and extracts diet plan data using AI
+ * Optimized for diet plan PDFs from The Balance Diet
  */
 
 import * as pdfjsLib from 'pdfjs-dist';
@@ -30,11 +30,23 @@ export async function extractTextFromPdf(file) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map(item => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ');
-      fullText += `\n--- Page ${i} ---\n` + pageText;
+      
+      // Get text items with their positions for better structure preservation
+      const items = textContent.items;
+      let lastY = null;
+      let lineText = '';
+      
+      items.forEach((item, idx) => {
+        if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+          // New line
+          fullText += lineText.trim() + '\n';
+          lineText = '';
+        }
+        lineText += item.str + ' ';
+        lastY = item.transform[5];
+      });
+      
+      fullText += lineText.trim() + '\n\n';
     }
 
     return fullText.trim();
@@ -49,52 +61,59 @@ export async function extractTextFromPdf(file) {
  */
 async function parseWithAI(extractedText, mealColumns) {
   if (!EMERGENT_API_KEY) {
-    console.warn('No API key found, using fallback parsing');
+    console.warn('No API key found');
     return null;
   }
 
   const columnIds = mealColumns.map(c => c.id);
   const columnLabels = mealColumns.map(c => c.label);
 
-  const systemPrompt = `You are a diet plan parser. Extract meal information from the provided PDF text and structure it into JSON format.
+  const systemPrompt = `You are an expert diet plan parser. Parse the diet plan text and extract structured data.
 
-CRITICAL INSTRUCTIONS:
-1. Analyze the PDF content carefully to identify the number of days in the diet plan
-2. Extract ACTUAL meal content from the PDF - do NOT make up or generate fake meals
-3. Look for patterns like "Day 1", "Day 2", "Monday", "Tuesday", or numbered sections
-4. Extract morning drink and night drink if mentioned (usually at the start or end)
-5. Look for any instructions or guidelines mentioned in the PDF
+IMPORTANT: The diet plans follow these common formats:
+1. "MRNG DRINK" or "Morning Drink" - morning drink before breakfast
+2. "NIGHT DRINK" or "Night drink" - drink before bed
+3. Days are marked as "DAY 1", "Day 1", etc. or weekday names
+4. Meals include: Breakfast, Mid-morning, Lunch, Evening/Snack, Dinner
+5. Some plans have "11 am" snacks or "4:30" snacks
 
-The meal columns to extract are: ${columnLabels.join(', ')}
-Column IDs: ${columnIds.join(', ')}
+Extract the EXACT meal content from the PDF. Map meals to these columns: ${columnLabels.join(', ')}
 
-Output ONLY valid JSON in this exact format (no markdown, no code blocks):
+For meal mapping:
+- "Breakfast" → breakfast
+- "Mid-morning", "11 am", "11am" → midMorning  
+- "Lunch" → lunch
+- "Evening", "Snack", "4:30", "4 pm" → evening
+- "Dinner" → dinner
+
+Output ONLY valid JSON (no markdown):
 {
   "days": [
     {
       "day": 1,
-      ${columnIds.map(id => `"${id}": "extracted meal for ${id}"`).join(',\n      ')}
+      ${columnIds.map(id => `"${id}": "exact meal from PDF"`).join(',\n      ')}
     }
   ],
   "drinks": {
-    "morning": "morning drink if found, or empty string",
-    "night": "night drink if found, or empty string"
+    "morning": "morning drink from PDF or empty string",
+    "night": "night drink from PDF or empty string"
   },
-  "instructions": "any instructions or guidelines found in the PDF",
-  "detectedDays": "number of days detected in the PDF"
+  "instructions": "any additional instructions found",
+  "totalDays": number
 }
 
-IMPORTANT:
-- If a meal is not clearly specified in the PDF, use "-" or leave empty
-- Preserve the exact meal descriptions from the PDF
-- Count the actual number of days mentioned in the PDF
-- Extract verbatim content, don't paraphrase`;
+Rules:
+- Extract VERBATIM meal text from the PDF
+- Count total days accurately (7, 10, 14, etc.)
+- Include ALL days found in the PDF
+- If mid-morning says "papaya" just write "Papaya"
+- Keep meal descriptions concise but complete`;
 
-  const userPrompt = `Parse this diet plan PDF and extract the actual content:
+  const userPrompt = `Parse this diet plan and extract all meals:
 
-${extractedText.substring(0, 8000)}
+${extractedText}
 
-Return ONLY the JSON object with the actual extracted content from this PDF.`;
+Return the complete JSON with all days found.`;
 
   try {
     const response = await fetch(OPENAI_API_URL, {
@@ -115,20 +134,16 @@ Return ONLY the JSON object with the actual extracted content from this PDF.`;
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('AI API error:', response.status, errorData);
+      console.error('AI API error:', response.status);
       return null;
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     
-    if (!content) {
-      console.error('No content in AI response');
-      return null;
-    }
+    if (!content) return null;
 
-    // Clean the response
+    // Clean response
     let cleanedContent = content.trim();
     if (cleanedContent.startsWith('```json')) {
       cleanedContent = cleanedContent.slice(7);
@@ -138,9 +153,9 @@ Return ONLY the JSON object with the actual extracted content from this PDF.`;
     if (cleanedContent.endsWith('```')) {
       cleanedContent = cleanedContent.slice(0, -3);
     }
-    cleanedContent = cleanedContent.trim();
 
-    const parsed = JSON.parse(cleanedContent);
+    const parsed = JSON.parse(cleanedContent.trim());
+    console.log('AI Parsed result:', parsed);
     return parsed;
   } catch (error) {
     console.error('AI parsing error:', error);
@@ -149,7 +164,72 @@ Return ONLY the JSON object with the actual extracted content from this PDF.`;
 }
 
 /**
- * Main function to parse PDF content and extract diet data
+ * Fallback: Parse text without AI using patterns
+ */
+function parseTextManually(text, mealColumns) {
+  const result = {
+    days: [],
+    drinks: { morning: '', night: '' },
+    instructions: ''
+  };
+
+  // Extract morning drink
+  const morningDrinkMatch = text.match(/(?:MRNG|Morning|Mrng)\s*(?:DRINK|drink)[:\s-]*([^\n]+)/i);
+  if (morningDrinkMatch) {
+    result.drinks.morning = morningDrinkMatch[1].trim();
+  }
+
+  // Extract night drink
+  const nightDrinkMatch = text.match(/(?:NIGHT|Night|Bed\s*time)\s*(?:DRINK|drink)?[:\s-]*([^\n]+)/i);
+  if (nightDrinkMatch) {
+    result.drinks.night = nightDrinkMatch[1].trim();
+  }
+
+  // Find all day sections
+  const dayPattern = /(?:DAY|Day)\s*(\d+)/gi;
+  const dayMatches = [...text.matchAll(dayPattern)];
+  
+  if (dayMatches.length === 0) {
+    return null;
+  }
+
+  // For each day, try to extract meals
+  for (let i = 0; i < dayMatches.length; i++) {
+    const dayNum = parseInt(dayMatches[i][1]);
+    const startIdx = dayMatches[i].index;
+    const endIdx = i < dayMatches.length - 1 ? dayMatches[i + 1].index : text.length;
+    const dayText = text.substring(startIdx, endIdx);
+    
+    const dayData = { day: dayNum };
+    
+    // Extract breakfast
+    const breakfastMatch = dayText.match(/(?:Breakfast|BREAKFAST)[:\s]*([^\n]+)/i);
+    dayData.breakfast = breakfastMatch ? breakfastMatch[1].trim() : '';
+    
+    // Extract mid-morning
+    const midMorningMatch = dayText.match(/(?:Mid-morning|Mid\s*morning|11\s*am)[:\s]*([^\n]+)/i);
+    dayData.midMorning = midMorningMatch ? midMorningMatch[1].trim() : '';
+    
+    // Extract lunch
+    const lunchMatch = dayText.match(/(?:Lunch|LUNCH)[:\s]*([^\n]+)/i);
+    dayData.lunch = lunchMatch ? lunchMatch[1].trim() : '';
+    
+    // Extract evening/snack
+    const eveningMatch = dayText.match(/(?:Evening|Snack|4:30|4\s*pm)[:\s]*([^\n]+)/i);
+    dayData.evening = eveningMatch ? eveningMatch[1].trim() : '';
+    
+    // Extract dinner
+    const dinnerMatch = dayText.match(/(?:Dinner|DINNER)[:\s]*([^\n]+)/i);
+    dayData.dinner = dinnerMatch ? dinnerMatch[1].trim() : '';
+    
+    result.days.push(dayData);
+  }
+
+  return result.days.length > 0 ? result : null;
+}
+
+/**
+ * Main function to parse PDF content
  */
 export async function parsePdfContent(file, duration = 7, onProgress, mealColumns) {
   try {
@@ -160,15 +240,14 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
     // Extract text from PDF
     try {
       extractedText = await extractTextFromPdf(file);
-      console.log('Extracted text length:', extractedText.length);
-      console.log('Extracted text preview:', extractedText.substring(0, 500));
+      console.log('Extracted text:', extractedText.substring(0, 1000));
     } catch (e) {
       console.warn('PDF extraction failed:', e.message);
     }
     
-    if (onProgress) onProgress(0.4);
+    if (onProgress) onProgress(0.3);
 
-    // Default meal columns if not provided
+    // Default columns
     const columns = mealColumns || [
       { id: 'breakfast', label: 'Breakfast' },
       { id: 'midMorning', label: 'Mid Morning' },
@@ -177,58 +256,49 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
       { id: 'dinner', label: 'Dinner' }
     ];
 
-    // Try AI parsing if we have text and API key
     let dietData = null;
     
-    if (extractedText.length > 100 && EMERGENT_API_KEY) {
-      if (onProgress) onProgress(0.5);
+    // Try AI parsing first
+    if (extractedText.length > 50 && EMERGENT_API_KEY) {
+      if (onProgress) onProgress(0.4);
       dietData = await parseWithAI(extractedText, columns);
-      if (onProgress) onProgress(0.8);
+      if (onProgress) onProgress(0.7);
     }
 
-    // If AI parsing succeeded, use that data
-    if (dietData && dietData.days && dietData.days.length > 0) {
-      // Ensure day numbers are correct
-      dietData.days = dietData.days.map((day, idx) => ({
-        ...day,
-        day: idx + 1
-      }));
+    // If AI failed, try manual parsing
+    if (!dietData || !dietData.days || dietData.days.length === 0) {
+      console.log('AI parsing failed, trying manual parsing...');
+      dietData = parseTextManually(extractedText, columns);
+    }
 
-      if (onProgress) onProgress(1);
+    // If both failed, use sample data
+    if (!dietData || !dietData.days || dietData.days.length === 0) {
+      console.log('Using sample data as fallback');
+      dietData = generateSampleDietData(duration, columns);
       
+      if (onProgress) onProgress(1);
       return {
         ...dietData,
-        parsedFromPdf: true,
-        usedAI: true,
+        parsedFromPdf: false,
+        usedAI: false,
         extractedTextLength: extractedText.length
       };
     }
 
-    // Fallback: Try basic text parsing
-    if (extractedText.length > 50) {
-      const basicParsed = basicTextParsing(extractedText, duration, columns);
-      if (basicParsed) {
-        if (onProgress) onProgress(1);
-        return {
-          ...basicParsed,
-          parsedFromPdf: true,
-          usedAI: false,
-          extractedTextLength: extractedText.length
-        };
-      }
-    }
+    // Ensure day numbers are correct
+    dietData.days = dietData.days.map((day, idx) => ({
+      ...day,
+      day: idx + 1
+    }));
 
-    // Final fallback: Generate sample data
-    console.log('Using sample diet data as fallback');
-    const sampleData = generateSampleDietData(duration, columns);
-    
     if (onProgress) onProgress(1);
     
     return {
-      ...sampleData,
-      parsedFromPdf: false,
-      usedAI: false,
-      extractedTextLength: extractedText.length
+      ...dietData,
+      parsedFromPdf: true,
+      usedAI: !!EMERGENT_API_KEY,
+      extractedTextLength: extractedText.length,
+      totalDays: dietData.days.length
     };
   } catch (error) {
     console.error('Error parsing PDF:', error);
@@ -237,103 +307,54 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
 }
 
 /**
- * Basic text parsing without AI
- */
-function basicTextParsing(text, duration, columns) {
-  const days = [];
-  const lowerText = text.toLowerCase();
-  
-  // Try to find day patterns
-  const dayPatterns = [
-    /day\s*(\d+)/gi,
-    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi
-  ];
-  
-  let dayMatches = [];
-  for (const pattern of dayPatterns) {
-    const matches = [...text.matchAll(pattern)];
-    if (matches.length > 0) {
-      dayMatches = matches;
-      break;
-    }
-  }
-
-  // If we found day patterns, try to extract content
-  if (dayMatches.length > 0) {
-    const numDays = Math.min(dayMatches.length, duration);
-    
-    for (let i = 0; i < numDays; i++) {
-      const dayData = { day: i + 1 };
-      
-      // Initialize all columns
-      columns.forEach(col => {
-        dayData[col.id] = '';
-      });
-      
-      days.push(dayData);
-    }
-    
-    if (days.length > 0) {
-      return {
-        days,
-        drinks: { morning: '', night: '' },
-        instructions: ''
-      };
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Generate sample diet data as fallback
+ * Generate sample diet data
  */
 function generateSampleDietData(duration, columns) {
   const sampleMeals = {
     breakfast: [
-      'Oatmeal with fresh berries & almonds',
-      'Whole wheat toast with avocado & eggs',
-      'Greek yogurt parfait with granola',
-      'Vegetable poha with peanuts',
-      'Multigrain dosa with chutney',
-      'Smoothie bowl with chia seeds',
-      'Idli with sambar & chutney'
+      'Vegetable Upma + 5 soaked almonds',
+      'Vegetable Oats + 5 soaked almonds',
+      'Moong dal cheela with chutney',
+      'Poha with vegetables',
+      '2 Besan chilla + green chutney',
+      'Ragi dosa + coconut chutney',
+      'Sprouts chaat bowl'
     ],
     midMorning: [
-      'Mixed nuts (30g) & green tea',
-      'Apple slices with almond butter',
-      'Coconut water & banana',
-      'Carrot sticks with hummus',
-      'Buttermilk with cumin',
-      'Fresh fruit bowl',
-      'Sprouted moong salad'
+      'Papaya',
+      '1 Guava',
+      '1 Orange',
+      'Kiwi',
+      '1 Apple',
+      'Pomegranate',
+      '1 Pear'
     ],
     lunch: [
-      'Brown rice, dal & vegetables',
-      'Quinoa bowl with paneer tikka',
-      'Roti, palak paneer & raita',
-      'Vegetable biryani & salad',
-      'Multigrain roti & chole',
-      'Buddha bowl with chickpeas',
-      'Rajma chawal & buttermilk'
+      '1 Roti + Dal + Steam Salad',
+      'Rice + Sambar + Salad',
+      '1 Roti + Chole + Sabzi',
+      '1 Jowar roti + Lauki sabzi',
+      '1 Bajra roti + Vegetable curry',
+      'Rice + Rajma + Steam salad',
+      '1 Multigrain roti + Palak dal'
     ],
     evening: [
-      'Roasted makhana & herbal tea',
-      'Vegetable cutlets & chutney',
-      'Sprouts chaat with pomegranate',
-      'Trail mix & coconut water',
-      'Dhokla with mint chutney',
-      'Fresh vegetable juice',
-      'Roasted chickpeas'
+      'Green tea + Makhana',
+      'Roasted chana + Green tea',
+      'Fruit chaat + Green tea',
+      'Yerba Mate + Makhana',
+      'Roasted peanuts + Green tea',
+      'Fruit bowl + Green tea',
+      'Green tea'
     ],
     dinner: [
-      'Vegetable soup & bread',
-      'Grilled paneer & vegetables',
-      'Dal, rice & bhindi sabzi',
-      'Khichdi with kadhi',
-      'Palak paneer & multigrain roti',
-      'Stuffed bell peppers',
-      'Moong dal cheela & curd'
+      'Vegetable Soup',
+      '1 Roti + Tori sabzi',
+      'Moong dal khichdi',
+      'Rasam rice',
+      'Stir-fried veggies',
+      'Lauki soup',
+      'Tomato soup'
     ]
   };
 
@@ -355,10 +376,10 @@ function generateSampleDietData(duration, columns) {
   return {
     days,
     drinks: {
-      morning: 'Warm lemon water with honey',
-      night: 'Warm turmeric milk'
+      morning: 'Methi seeds water (soaked overnight)',
+      night: 'Ajwain cinnamon jeera water'
     },
-    instructions: '• Drink at least 8-10 glasses of water daily\n• Avoid eating after 8 PM\n• Take meals at regular intervals\n• Chew food properly'
+    instructions: '• Drink 8-10 glasses of water daily\n• Avoid eating after 8 PM\n• Chew food properly\n• Take meals at regular intervals'
   };
 }
 
