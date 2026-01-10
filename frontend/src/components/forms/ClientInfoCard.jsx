@@ -117,7 +117,7 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
 
             {/* Start Date */}
             <div className="space-y-1 min-w-[140px] shrink-0">
-              <Label className="text-xs text-muted-foreground">Start</Label>
+              <Label className="text-xs text-muted-foreground block">Start</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -149,7 +149,7 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
             {/* End Date */}
             {clientInfo.endDate && (
               <div className="space-y-1 min-w-[140px] shrink-0">
-                <Label className="text-xs text-muted-foreground">End</Label>
+                <Label className="text-xs text-muted-foreground block">End</Label>
                 <div className="h-8 w-[140px] px-2 flex items-center text-xs bg-muted/50 rounded-lg border">
                   {format(clientInfo.endDate, "MMM d, yyyy")}
                 </div>

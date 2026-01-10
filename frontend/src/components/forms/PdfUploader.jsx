@@ -43,11 +43,9 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
       setStatus('complete');
       setIsProcessing(false);
       
-      const message = parsedData.usedAI 
-        ? `AI extracted ${parsedData.days.length} days from your PDF!`
-        : parsedData.parsedFromPdf
-          ? `Parsed ${parsedData.days.length} days from PDF`
-          : 'Loaded sample diet plan';
+      const message = parsedData.parsedFromPdf
+        ? `Parsed ${parsedData.days.length} days from PDF`
+        : 'Loaded sample diet plan';
       
       toast.success(message, {
         description: 'Review and edit the diet plan as needed.'
@@ -125,7 +123,7 @@ export const PdfUploader = ({ onParsed, isProcessing, setIsProcessing, clientInf
   const getStatusText = () => {
     switch (status) {
       case 'uploading': return 'Uploading file...';
-      case 'parsing': return 'AI is analyzing your diet plan...';
+      case 'parsing': return 'Analyzing your diet plan...';
       case 'complete': return 'Processing complete!';
       case 'error': return 'Processing failed';
       default: return '';

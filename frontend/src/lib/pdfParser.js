@@ -1,5 +1,5 @@
 /**
- * PDF Parser Module - Uses Backend API for AI parsing
+ * PDF Parser Module - Client-side parsing only
  */
 
 import * as pdfjsLib from 'pdfjs-dist';
@@ -10,7 +10,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 /**
  * Extract text content from PDF file
@@ -36,42 +35,6 @@ export async function extractTextFromPdf(file) {
   } catch (error) {
     console.error('Error extracting PDF text:', error);
     throw error;
-  }
-}
-
-/**
- * Parse text using backend AI API
- */
-async function parseWithBackendAI(text, mealColumns) {
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/parse-diet`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text,
-        meal_columns: mealColumns.map(c => ({ id: c.id, label: c.label }))
-      })
-    });
-
-    if (!response.ok) {
-      console.error('Backend API error:', response.status);
-      return null;
-    }
-
-    const result = await response.json();
-    
-    if (result.success && result.data) {
-      console.log('AI parsed result:', result.data);
-      return result.data;
-    }
-    
-    console.error('Parse failed:', result.error);
-    return null;
-  } catch (error) {
-    console.error('Backend API call failed:', error);
-    return null;
   }
 }
 
@@ -194,22 +157,9 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
     ];
 
     let dietData = null;
-    let usedAI = false;
-    
-    // Try backend AI parsing first
-    if (extractedText.length > 50) {
-      if (onProgress) onProgress(0.4);
-      console.log('Calling backend AI parser...');
-      dietData = await parseWithBackendAI(extractedText, columns);
-      if (dietData && dietData.days && dietData.days.length > 0) {
-        usedAI = true;
-      }
-      if (onProgress) onProgress(0.7);
-    }
 
-    // If AI failed, try manual parsing
-    if (!dietData || !dietData.days || dietData.days.length === 0) {
-      console.log('AI parsing failed, trying manual parsing...');
+    if (extractedText.length > 50) {
+      if (onProgress) onProgress(0.5);
       dietData = parseTextManually(extractedText, columns);
     }
 
@@ -222,7 +172,6 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
       return {
         ...dietData,
         parsedFromPdf: false,
-      usedAI: false,
         extractedTextLength: extractedText.length
       };
     }
@@ -238,7 +187,6 @@ export async function parsePdfContent(file, duration = 7, onProgress, mealColumn
     return {
       ...dietData,
       parsedFromPdf: true,
-      usedAI,
       extractedTextLength: extractedText.length,
       totalDays: dietData.days.length
     };
