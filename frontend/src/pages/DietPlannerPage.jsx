@@ -146,7 +146,7 @@ const DietPlannerPage = () => {
         onLogoUpload={handleLogoUpload}
       />
       
-      <main className="container mx-auto px-4 py-6 max-w-7xl">
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-6">
         {/* Hero Section - Compact */}
         <section className="mb-6 animate-fade-in">
           <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-primary/10 via-accent/5 to-background p-6">
@@ -317,7 +317,7 @@ const DietPlannerPage = () => {
 
       {/* Footer */}
       <footer className="border-t border-border/50 mt-12">
-        <div className="container mx-auto px-4 py-6">
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} {brandName}. Professional Diet Planning.

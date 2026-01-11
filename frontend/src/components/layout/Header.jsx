@@ -41,7 +41,7 @@ export const Header = ({ brandName, brandLogo, onBrandChange, onLogoUpload }) =>
 
   return (
     <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border/50">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto w-full max-w-[1400px] px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
@@ -49,11 +49,11 @@ export const Header = ({ brandName, brandLogo, onBrandChange, onLogoUpload }) =>
               <img 
                 src={brandLogo} 
                 alt={brandName} 
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto object-contain"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                <span className="text-primary-foreground font-bold text-sm">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <span className="text-primary-foreground font-bold text-base">
                   {brandName.charAt(0)}
                 </span>
               </div>

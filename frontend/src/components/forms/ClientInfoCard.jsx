@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,14 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format, addDays } from 'date-fns';
-import { CalendarIcon, ChevronDown, Leaf, Drumstick } from 'lucide-react';
+import { CalendarIcon, Leaf, Drumstick } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const ClientInfoCard = ({ clientInfo, onChange }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
   const handleStartDateChange = (date) => {
     onChange('startDate', date);
     if (date && clientInfo.duration) {
@@ -31,12 +27,11 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
 
   return (
     <Card className="shadow-sm">
-      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <CardContent className="p-3">
-          {/* Main Row - Always Visible */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 gap-2 items-end">
+      <CardContent className="p-3 space-y-2">
+        {/* Main Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-[minmax(140px,220px)_auto_auto_auto_auto_auto] gap-2 items-end">
             {/* Name */}
-            <div className="col-span-2 sm:col-span-1 md:col-span-2 lg:col-span-2 space-y-1">
+            <div className="col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-1 space-y-1">
               <Label htmlFor="name" className="text-xs text-muted-foreground">Client Name</Label>
               <Input
                 id="name"
@@ -116,7 +111,7 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
             </div>
 
             {/* Start Date */}
-            <div className="space-y-1 min-w-[140px] shrink-0">
+            <div className="space-y-1 min-w-[150px]">
               <Label className="text-xs text-muted-foreground block">Start</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -148,59 +143,40 @@ export const ClientInfoCard = ({ clientInfo, onChange }) => {
 
             {/* End Date */}
             {clientInfo.endDate && (
-              <div className="space-y-1 min-w-[140px] shrink-0">
+              <div className="space-y-1 min-w-[150px]">
                 <Label className="text-xs text-muted-foreground block">End</Label>
                 <div className="h-8 w-[140px] px-2 flex items-center text-xs bg-muted/50 rounded-lg border">
                   {format(clientInfo.endDate, "MMM d, yyyy")}
                 </div>
               </div>
             )}
-
-            {/* Expand Toggle */}
-            <div className="flex items-end justify-end">
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-2 shrink-0">
-                  <ChevronDown className={cn(
-                    "w-4 h-4 transition-transform",
-                    isExpanded && "rotate-180"
-                  )} />
-                  <span className="ml-1 text-xs">{isExpanded ? 'Less' : 'More'}</span>
-                </Button>
-              </CollapsibleTrigger>
-            </div>
           </div>
 
+        {/* Health & Allergies */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-border">
+          <div className="space-y-1">
+            <Label htmlFor="healthIssue" className="text-xs text-muted-foreground">Health Condition</Label>
+            <Input
+              id="healthIssue"
+              placeholder="E.g., Diabetes, PCOS, Weight Management"
+              value={clientInfo.healthIssue}
+              onChange={(e) => onChange('healthIssue', e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
 
-          {/* Expanded Section */}
-          <CollapsibleContent className="pt-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-border">
-              {/* Health Issue */}
-              <div className="space-y-1">
-                <Label htmlFor="healthIssue" className="text-xs text-muted-foreground">Health Condition</Label>
-                <Input
-                  id="healthIssue"
-                  placeholder="E.g., Diabetes, PCOS, Weight Management"
-                  value={clientInfo.healthIssue}
-                  onChange={(e) => onChange('healthIssue', e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-
-              {/* Allergies */}
-              <div className="space-y-1">
-                <Label htmlFor="allergies" className="text-xs text-muted-foreground">Allergic Items</Label>
-                <Input
-                  id="allergies"
-                  placeholder="E.g., Nuts, Dairy, Gluten"
-                  value={clientInfo.allergicItems}
-                  onChange={(e) => onChange('allergicItems', e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-            </div>
-          </CollapsibleContent>
-        </CardContent>
-      </Collapsible>
+          <div className="space-y-1">
+            <Label htmlFor="allergies" className="text-xs text-muted-foreground">Allergic Items</Label>
+            <Input
+              id="allergies"
+              placeholder="E.g., Nuts, Dairy, Gluten"
+              value={clientInfo.allergicItems}
+              onChange={(e) => onChange('allergicItems', e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+      </CardContent>
     </Card>
   );
 };
