@@ -9,6 +9,7 @@ import { MealColumnsManager } from '@/components/diet/MealColumnsManager';
 import { PdfExporter } from '@/components/export/PdfExporter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Upload, FileText, Download, Calendar, Utensils, Settings2 } from 'lucide-react';
@@ -58,6 +59,7 @@ const DietPlannerPage = () => {
   const [dietData, setDietData] = useState(null);
   const [drinks, setDrinks] = useState({ morning: '', night: '' });
   const [instructions, setInstructions] = useState('');
+  const [importantNote, setImportantNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
   const [showColumnManager, setShowColumnManager] = useState(false);
@@ -269,6 +271,22 @@ const DietPlannerPage = () => {
                 onChange={setDrinks}
               />
 
+              {/* Important Note */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-medium">Important Note (optional)</CardTitle>
+                  <CardDescription>Add any critical reminder to show ahead of instructions.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    placeholder="E.g., Avoid caffeine after 5 PM. Take prescribed medication before breakfast."
+                    value={importantNote}
+                    onChange={(e) => setImportantNote(e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                </CardContent>
+              </Card>
+
               {/* Diet Table */}
               <Card className="shadow-card">
                 <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -315,6 +333,7 @@ const DietPlannerPage = () => {
                 drinks={drinks}
                 instructions={instructions}
                 mealColumns={enabledColumns}
+                importantNote={importantNote}
               />
             </TabsContent>
           </Tabs>

@@ -11,7 +11,7 @@ import { Download, Eye, FileText, Leaf, Drumstick, Sunrise, Moon, AlertTriangle,
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks, instructions, mealColumns }) => {
+export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks, instructions, mealColumns, importantNote }) => {
   const [isExporting, setIsExporting] = useState(false);
   const healthQuotes = [
     'Small steps each day build lasting health.',
@@ -260,35 +260,61 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       // Client Info Box - grid layout
       const infoFontSize = 7;
       const titleFontSize = 8;
-      const lineHeight = 4.5;
+      const lineHeight = 4.8;
       const padding = 5;
       const infoHeaderHeight = 7;
       const rowGap = 4;
 
       const rows = [
         [
-          { label: 'Name', value: clientInfo.name || 'Not specified' },
-          { label: 'Diet Type', value: clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg' },
+          { label: 'Name', value: clientInfo.name || '' },
+          { label: 'Diet Type', value: clientInfo.dietType === 'veg' ? 'Vegetarian' : clientInfo.dietType === 'nonveg' ? 'Non-Veg' : '' },
+          { label: 'Duration', value: dietData?.days?.length ? `${dietData.days.length} Days` : '' },
         ],
         [
-          { label: 'Age', value: clientInfo.age ? `${clientInfo.age} yrs` : 'Not specified' },
-          { label: 'Duration', value: `${dietData.days.length} Days` },
+          { label: 'Age', value: clientInfo.age ? `${clientInfo.age} yrs` : '' },
+          { label: 'Dates', value: clientInfo.startDate && clientInfo.endDate ? `${format(clientInfo.startDate, 'MMM d, yyyy')} - ${format(clientInfo.endDate, 'MMM d, yyyy')}` : '' },
+          { label: 'Health', value: clientInfo.healthIssue || '' },
         ],
         [
-          { label: 'Dates', value: clientInfo.startDate && clientInfo.endDate ? `${format(clientInfo.startDate, 'MMM d, yyyy')} - ${format(clientInfo.endDate, 'MMM d, yyyy')}` : 'Not specified' },
-          { label: 'Health', value: clientInfo.healthIssue || 'None' },
+          { label: 'Allergies', value: clientInfo.allergicItems || '', multiline: true },
+          { label: 'Morning Drink', value: drinks?.morning || '', multiline: true },
+          { label: 'Night Drink', value: drinks?.night || '', multiline: true },
         ],
-        [
-          { label: 'Allergies', value: clientInfo.allergicItems || 'None' },
-          { label: 'Morning Drink', value: drinks?.morning || 'Not specified', multiline: true },
-        ],
-        [
-          { label: 'Night Drink', value: drinks?.night || 'Not specified', multiline: true },
-          { label: '', value: '' },
-        ],
-      ];
+      ]
+        .map(row => row.filter(cell => cell.value))
+        .filter(row => row.length > 0);
 
-      const boxHeight = infoHeaderHeight + padding * 2 + rows.length * lineHeight * 2 + (rows.length - 1) * rowGap;
+      // Compute dynamic heights
+      const rowHeights = rows.map(row => {
+        const colCount = row.length || 1;
+        const colWidthRow = (contentWidth - padding * 2) / colCount;
+        let maxHeight = lineHeight * 2;
+        row.forEach(cell => {
+          if (!cell?.label) return;
+          let linesCount = 1; // label
+          if (cell.multiline && cell.value.includes(',')) {
+            const parts = cell.value.split(',').map(s => s.trim()).filter(Boolean);
+            parts.forEach(part => {
+              const wrapped = pdf.splitTextToSize(part, colWidthRow - padding);
+              linesCount += wrapped.length;
+            });
+          } else if (cell.value) {
+            const wrapped = pdf.splitTextToSize(cell.value, colWidthRow - padding);
+            linesCount += Math.max(1, wrapped.length);
+          }
+          const cellHeight = linesCount * lineHeight;
+          if (cellHeight > maxHeight) maxHeight = cellHeight;
+        });
+        return maxHeight;
+      });
+
+      const boxHeight =
+        infoHeaderHeight +
+        padding * 2 +
+        rowHeights.reduce((sum, h) => sum + h, 0) +
+        (rowHeights.length > 0 ? (rowHeights.length - 1) * rowGap : 0) +
+        8;
 
       pdf.setFillColor(...bgLight);
       pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 3, 3, 'F');
@@ -307,13 +333,12 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       pdf.setFontSize(infoFontSize);
 
       let textY = yPos + infoHeaderHeight + padding + lineHeight;
-      const colX1 = margin + padding;
-      const colX2 = margin + contentWidth / 2 + padding / 2;
-
-      rows.forEach(row => {
-        const [left, right] = row;
+      rows.forEach((row, idx) => {
+        const colCount = row.length || 1;
+        const colWidthRow = (contentWidth - padding * 2) / colCount;
+        const colX = Array.from({ length: colCount }, (_, i) => margin + padding + colWidthRow * i);
         const renderCell = (cell, x) => {
-          if (!cell?.label) return;
+          if (!cell?.label) return lineHeight * 2;
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(...mutedColor);
           pdf.text(cell.label, x, textY);
@@ -323,23 +348,34 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
             const parts = cell.value.split(',').map(s => s.trim()).filter(Boolean);
             let offset = lineHeight;
             parts.forEach(part => {
-              pdf.text(part, x, textY + offset);
-              offset += lineHeight;
+              const linesWrapped = pdf.splitTextToSize(part, colWidthRow - padding);
+              linesWrapped.forEach(wl => {
+                pdf.text(wl, x, textY + offset);
+                offset += lineHeight;
+              });
             });
             return offset;
           } else {
-            pdf.text(cell.value, x, textY + lineHeight);
-            return lineHeight * 2;
+            const wrapped = cell.value ? pdf.splitTextToSize(cell.value, colWidthRow - padding) : [];
+            if (wrapped.length === 0) {
+              pdf.text(cell.value || '', x, textY + lineHeight);
+              return lineHeight * 2;
+            }
+            let offset = lineHeight;
+            wrapped.forEach(wl => {
+              pdf.text(wl, x, textY + offset);
+              offset += lineHeight;
+            });
+            return offset;
           }
         };
 
-        const leftHeight = renderCell(left, colX1) || lineHeight * 2;
-        const rightHeight = renderCell(right, colX2) || lineHeight * 2;
-        const rowHeight = Math.max(leftHeight, rightHeight);
-        textY += rowHeight + rowGap;
+        const heights = row.map((cell, i) => renderCell(cell, colX[i]) || lineHeight * 2);
+        const rowHeight = Math.max(...heights, lineHeight * 2);
+        textY += rowHeight + (idx < rowHeights.length - 1 ? rowGap : 0);
       });
 
-      yPos += boxHeight + 4;
+      yPos += boxHeight + 6;
 
       // Diet Table Title
       pdf.setFontSize(10);
@@ -358,8 +394,8 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       });
 
       const totalColumns = mealColumns.length + 1;
-      const colWidth = contentWidth / totalColumns;
-      const dayColWidth = colWidth;
+      const tableColWidth = contentWidth / totalColumns;
+      const dayColWidth = tableColWidth;
 
       autoTable(pdf, {
         startY: yPos,
@@ -387,7 +423,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
         columnStyles: {
           0: { cellWidth: dayColWidth, halign: 'center', fontStyle: 'bold' },
           ...Object.fromEntries(
-            mealColumns.map((_, i) => [i + 1, { cellWidth: colWidth, halign: 'center', valign: 'middle' }])
+            mealColumns.map((_, i) => [i + 1, { cellWidth: tableColWidth, halign: 'center', valign: 'middle' }])
           )
         },
         alternateRowStyles: { fillColor: [252, 255, 252] },
@@ -409,6 +445,40 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       });
 
       yPos = pdf.lastAutoTable.finalY + 6;
+
+      // Important Note
+      if (importantNote && importantNote.trim()) {
+        if (yPos + 20 > pageHeight - 15) {
+          pdf.addPage();
+          yPos = 15;
+        }
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(margin, yPos, contentWidth, 5, 1, 1, 'F');
+        pdf.setFontSize(8);
+        pdf.setTextColor(...primaryColor);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Important Note', margin + 3, yPos + 3.5);
+        yPos += 7;
+
+        pdf.setFontSize(7);
+        pdf.setTextColor(...textColor);
+        pdf.setFont('helvetica', 'normal');
+
+        const impLines = importantNote.split('\n');
+        impLines.forEach(line => {
+          if (yPos > pageHeight - 12) {
+            pdf.addPage();
+            yPos = 15;
+          }
+          const wrapped = pdf.splitTextToSize(line, contentWidth - 6);
+          wrapped.forEach(wl => {
+            pdf.text(wl, margin + 3, yPos);
+            yPos += 4.2;
+          });
+        });
+
+        yPos += 4;
+      }
 
       // Instructions
       if (instructions && instructions.trim()) {
