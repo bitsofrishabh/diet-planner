@@ -13,8 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Upload, FileText, Download, Calendar, Utensils, Settings2 } from 'lucide-react';
 
-// Default logo URL
-const DEFAULT_LOGO = 'https://customer-assets.emergentagent.com/job_meal-manager-56/artifacts/ghilkevh_Logo%20%281%29.png';
+// Default logo URL (local asset for CORS-safe usage)
+const DEFAULT_LOGO = '/assets/Logo.png';
 
 // Default meal columns
 const DEFAULT_MEAL_COLUMNS = [
@@ -31,7 +31,13 @@ const DietPlannerPage = () => {
     return localStorage.getItem('brandName') || 'The Balance Diet';
   });
   const [brandLogo, setBrandLogo] = useState(() => {
-    return localStorage.getItem('brandLogo') || DEFAULT_LOGO;
+    const saved = localStorage.getItem('brandLogo');
+    // If saved logo is remote (likely to hit CORS), reset to local asset
+    if (saved && saved.startsWith('http')) {
+      localStorage.removeItem('brandLogo');
+      return DEFAULT_LOGO;
+    }
+    return saved || DEFAULT_LOGO;
   });
   const [mealColumns, setMealColumns] = useState(() => {
     const saved = localStorage.getItem('mealColumns');

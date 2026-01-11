@@ -22,6 +22,25 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
     'Consistency creates lasting results.'
   ];
 
+  const toDataUrl = async (url) => {
+    if (!url) return null;
+    // If already data URL, return as-is
+    if (url.startsWith('data:')) return url;
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn('Logo fetch failed, continuing without logo', e);
+      return null;
+    }
+  };
+
   const renderPreview = (wrapperClassName = '') => (
     <div className={cn("p-4 bg-card text-xs", wrapperClassName)}>
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-primary/20">
@@ -151,7 +170,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 8;
+      const margin = 6;
       const contentWidth = pageWidth - (margin * 2);
       let yPos = margin;
 
@@ -181,32 +200,34 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
         pdf.setFillColor(...bgLight);
         pdf.rect(0, 0, pageWidth, headerHeight, 'F');
         
+        // Left: dynamic title using client name
+        pdf.setFontSize(14);
+        pdf.setTextColor(...primaryColor);
+        pdf.setFont('helvetica', 'bold');
+        const clientTitle = `${clientInfo.name || 'Client'} Diet Plan`;
+        pdf.text(clientTitle, margin, 14);
+
+        // Right: brand logo if available
         if (brandLogo) {
           try {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            await new Promise((resolve, reject) => {
-              img.onload = resolve;
-              img.onerror = reject;
-              img.src = brandLogo;
-            });
-            
-            const logoHeight = 18;
-            let logoWidth = (img.width / img.height) * logoHeight;
-            if (logoWidth > 50) logoWidth = 50;
-            
-            pdf.addImage(img, 'PNG', margin, 3, logoWidth, logoHeight);
+            const dataUrl = await toDataUrl(brandLogo);
+            if (dataUrl) {
+              const img = new Image();
+              await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = dataUrl;
+              });
+              
+              const logoHeight = 18;
+              let logoWidth = (img.width / img.height) * logoHeight;
+              if (logoWidth > 55) logoWidth = 55;
+              const logoX = pageWidth - margin - logoWidth;
+              pdf.addImage(dataUrl, 'PNG', logoX, 3, logoWidth, logoHeight);
+            }
           } catch (e) {
-            pdf.setFontSize(14);
-            pdf.setTextColor(...primaryColor);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(brandName, margin, 14);
+            console.warn('Logo embed failed', e);
           }
-        } else {
-          pdf.setFontSize(14);
-          pdf.setTextColor(...primaryColor);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(brandName, margin, 14);
         }
         
         pdf.setDrawColor(...primaryColor);
@@ -236,73 +257,86 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
       // === Build PDF ===
       await addHeader();
 
-      // Consolidated Client Info Box - All details in one box
+      // Client Info Box - grid layout
       const infoFontSize = 7;
-      const titleFontSize = 7.5;
-      const lineHeight = 4;
-      const padding = 4;
-      const infoHeaderHeight = 6;
-      const maxTextWidth = contentWidth - padding * 2;
+      const titleFontSize = 8;
+      const lineHeight = 4.5;
+      const padding = 5;
+      const infoHeaderHeight = 7;
+      const rowGap = 4;
 
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(infoFontSize);
-
-      const lines = [];
-      const line1Parts = [
-        `Client: ${clientInfo.name || '-'}`,
-        `Age: ${clientInfo.age ? `${clientInfo.age} yrs` : '-'}`,
-        `Diet: ${clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg'}`,
-        `Days: ${dietData.days.length}`
+      const rows = [
+        [
+          { label: 'Name', value: clientInfo.name || 'Not specified' },
+          { label: 'Diet Type', value: clientInfo.dietType === 'veg' ? 'Vegetarian' : 'Non-Veg' },
+        ],
+        [
+          { label: 'Age', value: clientInfo.age ? `${clientInfo.age} yrs` : 'Not specified' },
+          { label: 'Duration', value: `${dietData.days.length} Days` },
+        ],
+        [
+          { label: 'Dates', value: clientInfo.startDate && clientInfo.endDate ? `${format(clientInfo.startDate, 'MMM d, yyyy')} - ${format(clientInfo.endDate, 'MMM d, yyyy')}` : 'Not specified' },
+          { label: 'Health', value: clientInfo.healthIssue || 'None' },
+        ],
+        [
+          { label: 'Allergies', value: clientInfo.allergicItems || 'None' },
+          { label: 'Morning Drink', value: drinks?.morning || 'Not specified', multiline: true },
+        ],
+        [
+          { label: 'Night Drink', value: drinks?.night || 'Not specified', multiline: true },
+          { label: '', value: '' },
+        ],
       ];
-      lines.push(...pdf.splitTextToSize(line1Parts.join(' | '), maxTextWidth));
 
-      const line2Parts = [];
-      if (clientInfo.startDate && clientInfo.endDate) {
-        line2Parts.push(
-          `Dates: ${format(clientInfo.startDate, 'MMM d, yyyy')} - ${format(clientInfo.endDate, 'MMM d, yyyy')}`
-        );
-      }
-      if (clientInfo.healthIssue) {
-        line2Parts.push(`Health: ${clientInfo.healthIssue}`);
-      }
-      if (clientInfo.allergicItems) {
-        line2Parts.push(`Allergies: ${clientInfo.allergicItems}`);
-      }
-      if (line2Parts.length > 0) {
-        lines.push(...pdf.splitTextToSize(line2Parts.join(' | '), maxTextWidth));
-      }
+      const boxHeight = infoHeaderHeight + padding * 2 + rows.length * lineHeight * 2 + (rows.length - 1) * rowGap;
 
-      const line3Parts = [];
-      if (drinks?.morning) {
-        line3Parts.push(`Morning Drink: ${drinks.morning}`);
-      }
-      if (drinks?.night) {
-        line3Parts.push(`Night Drink: ${drinks.night}`);
-      }
-      if (line3Parts.length > 0) {
-        lines.push(...pdf.splitTextToSize(line3Parts.join(' | '), maxTextWidth));
-      }
-
-      const boxHeight = lines.length * lineHeight + padding * 2 + infoHeaderHeight;
       pdf.setFillColor(...bgLight);
-      pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 2, 2, 'F');
+      pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 3, 3, 'F');
       pdf.setDrawColor(220, 230, 225);
-      pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 2, 2, 'S');
+      pdf.roundedRect(margin, yPos, contentWidth, boxHeight, 3, 3, 'S');
 
       pdf.setFillColor(...primaryColor);
       pdf.rect(margin, yPos, contentWidth, infoHeaderHeight, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(titleFontSize);
-      pdf.text('Client Info', margin + padding, yPos + infoHeaderHeight - 2);
+      pdf.text('Client Information', margin + padding, yPos + infoHeaderHeight - 2);
 
       pdf.setTextColor(...textColor);
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(infoFontSize);
-      let textY = yPos + infoHeaderHeight + padding + lineHeight - 1;
-      lines.forEach(line => {
-        pdf.text(line, margin + padding, textY);
-        textY += lineHeight;
+
+      let textY = yPos + infoHeaderHeight + padding + lineHeight;
+      const colX1 = margin + padding;
+      const colX2 = margin + contentWidth / 2 + padding / 2;
+
+      rows.forEach(row => {
+        const [left, right] = row;
+        const renderCell = (cell, x) => {
+          if (!cell?.label) return;
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(...mutedColor);
+          pdf.text(cell.label, x, textY);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(...textColor);
+          if (cell.multiline && cell.value.includes(',')) {
+            const parts = cell.value.split(',').map(s => s.trim()).filter(Boolean);
+            let offset = lineHeight;
+            parts.forEach(part => {
+              pdf.text(part, x, textY + offset);
+              offset += lineHeight;
+            });
+            return offset;
+          } else {
+            pdf.text(cell.value, x, textY + lineHeight);
+            return lineHeight * 2;
+          }
+        };
+
+        const leftHeight = renderCell(left, colX1) || lineHeight * 2;
+        const rightHeight = renderCell(right, colX2) || lineHeight * 2;
+        const rowHeight = Math.max(leftHeight, rightHeight);
+        textY += rowHeight + rowGap;
       });
 
       yPos += boxHeight + 4;
@@ -323,20 +357,9 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
         return [dayLabel, ...mealColumns.map(col => day[col.id] || '-')];
       });
 
-      const dayColWidth = 14;
-      const columnWeights = mealColumns.map((col, idx) => {
-        let maxLen = columnLabels[idx].length;
-        dietData.days.forEach(day => {
-          const valueLen = String(day[col.id] || '').length;
-          if (valueLen > maxLen) {
-            maxLen = valueLen;
-          }
-        });
-        return Math.min(40, Math.max(8, maxLen));
-      });
-      const totalWeight = columnWeights.reduce((sum, weight) => sum + weight, 0) || 1;
-      const availableWidth = contentWidth - dayColWidth;
-      const columnWidths = columnWeights.map(weight => (availableWidth * weight) / totalWeight);
+      const totalColumns = mealColumns.length + 1;
+      const colWidth = contentWidth / totalColumns;
+      const dayColWidth = colWidth;
 
       autoTable(pdf, {
         startY: yPos,
@@ -344,28 +367,34 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
         body: tableBody,
         theme: 'grid',
         styles: {
-          fontSize: 6.5,
-          cellPadding: 1.5,
-          lineColor: [220, 230, 225],
-          lineWidth: 0.15,
+          fontSize: 7.2,
+          cellPadding: 2.8,
+          lineColor: [210, 220, 215],
+          lineWidth: 0.12,
           textColor: textColor,
-          overflow: 'linebreak'
+          overflow: 'linebreak',
+          halign: 'center',
+          valign: 'middle'
         },
         headStyles: {
           fillColor: primaryColor,
           textColor: [255, 255, 255],
           fontStyle: 'bold',
-          fontSize: 6.5,
-          halign: 'center'
+          fontSize: 7.5,
+          halign: 'center',
+          valign: 'middle'
         },
         columnStyles: {
           0: { cellWidth: dayColWidth, halign: 'center', fontStyle: 'bold' },
           ...Object.fromEntries(
-            mealColumns.map((_, i) => [i + 1, { cellWidth: columnWidths[i] }])
+            mealColumns.map((_, i) => [i + 1, { cellWidth: colWidth, halign: 'center', valign: 'middle' }])
           )
         },
         alternateRowStyles: { fillColor: [252, 255, 252] },
         margin: { left: margin, right: margin },
+        didParseCell: (data) => {
+          data.cell.styles.minCellHeight = Math.max(data.cell.styles.minCellHeight || 0, 9);
+        },
         didDrawPage: (data) => {
           if (data.pageNumber > 1) {
             pdf.setFontSize(8);
@@ -397,7 +426,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
         pdf.text('Instructions', margin + 3, yPos + 3.5);
         yPos += 7;
         
-        pdf.setFontSize(6.5);
+        pdf.setFontSize(7);
         pdf.setTextColor(...textColor);
         pdf.setFont('helvetica', 'normal');
         
@@ -410,7 +439,7 @@ export const PdfExporter = ({ dietData, clientInfo, brandName, brandLogo, drinks
           const wrapped = pdf.splitTextToSize(line, contentWidth - 6);
           wrapped.forEach(wl => {
             pdf.text(wl, margin + 3, yPos);
-            yPos += 3.5;
+            yPos += 4.2;
           });
         });
       }
